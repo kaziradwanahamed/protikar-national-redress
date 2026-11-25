@@ -1,0 +1,543 @@
+{% extends "portal/base.html" %}
+{% load portal_i18n %}
+{% block title %}{{ t.nav_citizen }} · {{ t.brand_title }}{% endblock %}
+
+{% block content %}
+<div x-data="citizenPortal()" class="space-y-8">
+  <!-- Header & One-Step myGov / Porichoy Login -->
+  <section class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-hairline pb-6">
+    <div class="max-w-2xl space-y-2">
+      <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight text-ink">{{ t.citizen_heading }}</h1>
+      <p class="text-sm text-ink-secondary leading-relaxed">{{ t.citizen_subhead }}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <a href="/api/v1/accounts/sso/mygov/authorize/" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-civic text-white text-sm font-medium hover:bg-civic-hover transition-colors">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        {{ t.mygov_login }}
+      </a>
+      <button type="button" @click="twoKeyOpen = true" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-hairline bg-surface text-sm font-medium text-ink hover:bg-canvas transition-colors">
+        <svg class="w-4 h-4 text-ink-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        {{ t.two_key_button }}
+      </button>
+    </div>
+  </section>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <!-- Multimodal Complaint Submission Form -->
+    <section class="lg:col-span-7 bg-surface border border-hairline rounded-xl p-6 space-y-5">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-base font-semibold text-ink">New grievance submission</h2>
+        <span class="text-xs font-mono text-ink-muted tabular-nums" x-text="mapEngineLabel"></span>
+      </div>
+
+      <!-- 1-Click Sample Complaint Quick-Fill Buttons -->
+      <div class="p-3.5 rounded-lg bg-canvas border border-hairline space-y-2">
+        <span class="block text-xs font-medium text-ink-secondary">Try sample complaint (1-click auto-fill)</span>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" @click="fillSample('transformer')" class="px-3 py-1.5 rounded-lg border border-hairline bg-surface text-xs font-medium text-ink hover:border-civic transition-colors">
+            1. Power Transformer Fault
+          </button>
+          <button type="button" @click="fillSample('compound')" class="px-3 py-1.5 rounded-lg border border-hairline bg-surface text-xs font-medium text-ink hover:border-civic transition-colors">
+            2. Burst Water Pipe + Broken Road
+          </button>
+          <button type="button" @click="fillSample('flood')" class="px-3 py-1.5 rounded-lg border border-hairline bg-surface text-xs font-medium text-ink hover:border-civic transition-colors">
+            3. Flood Emergency
+          </button>
+        </div>
+      </div>
+
+      <form hx-post="{% url 'portal:htmx-submit' %}" hx-target="#submission-result" hx-swap="innerHTML" hx-encoding="multipart/form-data" class="space-y-5">
+        {% csrf_token %}
+        <label class="flex items-start gap-3 p-4 rounded-lg bg-canvas border border-hairline cursor-pointer">
+          <input type="checkbox" name="is_anonymous" x-model="isAnonymous" class="mt-0.5 h-4 w-4 rounded border-hairline text-civic focus:ring-civic">
+          <span class="space-y-1">
+            <span class="block text-sm font-medium text-ink">{{ t.whistleblower_label }}</span>
+            <span class="block text-xs text-ink-secondary">{{ t.whistleblower_hint }}</span>
+          </span>
+        </label>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-ink-secondary mb-1.5">Description (Bangla)</label>
+            <textarea name="raw_text_bn" x-model="textBn" rows="3" placeholder="মিরপুর ১০ নম্বরে ওয়াসার পাইপ ফেটে গেছে..." class="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus:border-civic"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-ink-secondary mb-1.5">Description (English)</label>
+            <textarea name="raw_text_en" x-model="textEn" rows="3" placeholder="Describe the civic issue, road, utility pole, or office..." class="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus:border-civic"></textarea>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="p-3.5 rounded-lg border border-hairline bg-canvas space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-ink-secondary">Voice note (Bangla / Dialect ASR)</span>
+              <span class="text-xs font-mono text-ink-muted tabular-nums" x-text="recording ? 'Recording' : (voiceRecorded ? 'Captured' : 'Ready')"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" @click="toggleVoice()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-surface text-xs font-medium text-ink hover:bg-civic-tint transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                <span x-text="recording ? ('Stop (' + recordTimerLabel + ')') : 'Record voice note'"></span>
+              </button>
+              <input id="voice-blob-input" type="file" name="voice_audio_file" accept="audio/*" class="hidden">
+              <input type="hidden" name="voice_audio_url" :value="voiceAudioUrl">
+            </div>
+            <audio x-show="voicePreviewUrl" :src="voicePreviewUrl" controls class="w-full h-8 mt-1"></audio>
+          </div>
+
+          <div class="p-3.5 rounded-lg border border-hairline bg-canvas space-y-2">
+            <label class="block text-xs font-medium text-ink-secondary">Attach evidence photo</label>
+            <input type="file" name="photo_file" accept="image/*" capture="environment" @change="onPhotoSelected($event)" class="block w-full text-xs text-ink-secondary file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border file:border-hairline file:text-xs file:bg-surface file:text-ink">
+            <label class="inline-flex items-center gap-2 text-xs text-ink-secondary cursor-pointer pt-0.5">
+              <input type="checkbox" name="use_sample_photo" x-model="useSamplePhoto" class="h-3.5 w-3.5 rounded border-hairline text-civic">
+              <span>Use sample evidence photo</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Google Maps Live Location Picker + Bangladesh Places Search + Live GPS -->
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-medium text-ink-secondary">Incident location (click or drag pin)</span>
+            <button type="button" @click="useLiveLocation()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-civic text-white text-xs font-medium hover:bg-civic-hover transition-colors">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>
+              <span x-text="locating ? 'Locating GPS...' : '{{ t.use_live_gps }}'"></span>
+            </button>
+          </div>
+
+          <!-- Bangladesh Places Autocomplete Search Box -->
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input id="bd-place-search" type="text" placeholder="Search Bangladesh road, area, or landmark (e.g., Mirpur 10, Ashulia, Sylhet)..." class="flex-1 rounded-lg border border-hairline bg-surface px-3 py-2 text-xs text-ink focus:outline-none focus:border-civic">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button type="button" @click="jumpLocation(23.8069, 90.3687, 'Mirpur-10, Dhaka')" class="px-2.5 py-1.5 rounded-md border border-hairline bg-canvas text-xs text-ink hover:border-civic">Mirpur-10</button>
+              <button type="button" @click="jumpLocation(23.7925, 90.4143, 'Gulshan-2, Dhaka')" class="px-2.5 py-1.5 rounded-md border border-hairline bg-canvas text-xs text-ink hover:border-civic">Gulshan-2</button>
+              <button type="button" @click="jumpLocation(23.7461, 90.3742, 'Dhanmondi, Dhaka')" class="px-2.5 py-1.5 rounded-md border border-hairline bg-canvas text-xs text-ink hover:border-civic">Dhanmondi</button>
+              <button type="button" @click="jumpLocation(24.8949, 91.8687, 'Sylhet Sadar, Sylhet')" class="px-2.5 py-1.5 rounded-md border border-hairline bg-canvas text-xs text-ink hover:border-civic">Sylhet Sadar</button>
+            </div>
+          </div>
+
+          <!-- Reverse-Geocoded Location Display Badge -->
+          <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-canvas border border-hairline text-xs">
+            <span class="text-ink font-medium truncate" x-text="locationBadge"></span>
+            <span class="font-mono text-ink-muted tabular-nums" x-text="lat + ', ' + lon"></span>
+          </div>
+
+          <div id="citizen-pin-map" class="h-64 w-full rounded-lg border border-hairline z-10"></div>
+          <input type="hidden" name="lat" :value="lat">
+          <input type="hidden" name="lon" :value="lon">
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="submit" class="px-5 py-2.5 rounded-lg bg-civic text-white text-sm font-medium hover:bg-civic-hover transition-colors">
+            {{ t.submit_grievance }}
+          </button>
+        </div>
+      </form>
+
+      <div id="submission-result"></div>
+    </section>
+
+    <!-- Live Complaint Timeline Tracker -->
+    <aside class="lg:col-span-5 space-y-6">
+      <div class="bg-surface border border-hairline rounded-xl p-6 space-y-4">
+        <h2 class="text-base font-semibold text-ink">{{ t.track_heading }}</h2>
+        <form hx-get="{% url 'portal:htmx-track' %}" hx-target="#timeline-result" hx-swap="innerHTML" class="flex gap-2">
+          <input type="text" name="tracking_code" x-model="trackCodeInput" placeholder="{{ t.track_placeholder }}" class="flex-1 rounded-lg border border-hairline bg-surface px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:border-civic">
+          <button type="submit" class="px-4 py-2 rounded-lg bg-civic text-white text-sm font-medium hover:bg-civic-hover transition-colors">
+            {{ t.track_button }}
+          </button>
+        </form>
+        <div id="timeline-result">
+          <p class="text-xs text-ink-muted">Click any case below or enter a tracking code to inspect Parent/Child sub-tickets, e-GP Capital Milestones, and Two-Key verification.</p>
+        </div>
+      </div>
+
+      <div class="bg-surface border border-hairline rounded-xl p-6 space-y-3">
+        <h3 class="text-sm font-semibold text-ink">Recent public cases</h3>
+        <div class="divide-y divide-hairline">
+          {% for c in recent_complaints %}
+          <div class="py-2.5 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <button type="button"
+                @click="trackCodeInput = '{{ c.tracking_code }}'; activeVerifyCode = '{{ c.tracking_code }}'"
+                hx-get="{% url 'portal:htmx-track' %}?tracking_code={{ c.tracking_code }}"
+                hx-target="#timeline-result"
+                hx-swap="innerHTML"
+                class="font-mono text-xs font-medium text-civic hover:underline">
+                {{ c.tracking_code }}
+              </button>
+              <p class="text-xs text-ink-secondary truncate">{{ c.raw_text_en|default:c.raw_text_bn }}</p>
+            </div>
+            <span class="shrink-0 inline-flex items-center gap-1.5 text-xs font-mono text-ink-secondary tabular-nums">
+              <span class="w-1.5 h-1.5 rounded-full {% if c.urgency_tier == 'P1' %}bg-crimson{% elif c.urgency_tier == 'P2' %}bg-amberwarn{% else %}bg-civic{% endif %}"></span>
+              {{ c.urgency_tier|urgency_label:portal_lang }}
+            </span>
+          </div>
+          {% empty %}
+          <p class="text-xs text-ink-muted">No complaints recorded yet. Run <span class="font-mono">python manage.py seed_demo_data</span> or submit a case above.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </aside>
+  </div>
+
+
+  <!-- FR01: Citizen Registration & Login Modal (Mobile + 6-digit OTP + NID / Birth Registration) -->
+  <div x-show="otpModalOpen" x-cloak class="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center p-4">
+    <div @click.away="otpModalOpen = false" class="bg-surface border border-hairline rounded-xl max-w-md w-full p-6 space-y-4 shadow-lg">
+      <div class="flex items-center justify-between border-b border-hairline pb-3">
+        <div>
+          <h3 class="text-base font-semibold text-ink">Citizen Registration &amp; Login (FR01)</h3>
+          <p class="text-xs text-ink-muted">Mobile SMS OTP + National ID (NID) or Birth Registration</p>
+        </div>
+        <button type="button" @click="otpModalOpen = false" class="text-xs text-ink-muted hover:text-ink">Close</button>
+      </div>
+
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-xs text-ink-secondary mb-1">Bangladesh Mobile Number</label>
+          <div class="flex gap-2">
+            <input type="text" x-model="otpPhone" placeholder="+8801711000099" class="flex-1 rounded-lg border border-hairline px-3 py-2 font-mono text-xs">
+            <button type="button" @click="requestCitizenOtp()" class="px-3 py-2 rounded-lg bg-civic text-white text-xs font-medium hover:bg-civic-hover">Send OTP</button>
+          </div>
+          <p x-show="otpDevToast" x-text="otpDevToast" class="mt-1.5 text-xs font-mono text-civic bg-civic-tint px-2.5 py-1.5 rounded-md"></p>
+        </div>
+
+        <form hx-post="{% url 'portal:htmx-otp-verify' %}" hx-target="#otp-verify-result" hx-swap="innerHTML" class="space-y-3 border-t border-hairline pt-3">
+          {% csrf_token %}
+          <input type="hidden" name="challenge_id" :value="otpChallengeId">
+          <input type="hidden" name="phone_number" :value="otpPhone">
+          <div>
+            <label class="block text-xs text-ink-secondary mb-1">6-Digit SMS OTP</label>
+            <input type="text" name="otp_code" x-model="otpCode" maxlength="6" required placeholder="123456" class="w-full rounded-lg border border-hairline px-3 py-2 font-mono text-xs">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-ink-secondary mb-1">Identity Type</label>
+              <select name="id_type" x-model="otpIdType" class="w-full rounded-lg border border-hairline px-2.5 py-2 text-xs bg-surface">
+                <option value="NID">National ID (NID)</option>
+                <option value="BRN">Birth Registration (BRN)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-ink-secondary mb-1">NID / BRN Number</label>
+              <input type="text" name="id_number" x-model="otpIdNumber" required class="w-full rounded-lg border border-hairline px-2.5 py-2 font-mono text-xs">
+            </div>
+          </div>
+          <button type="submit" class="w-full py-2.5 rounded-lg bg-civic text-white text-xs font-medium hover:bg-civic-hover">Verify Identity &amp; Sign In</button>
+        </form>
+        <div id="otp-verify-result"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two-Key Verification Modal -->
+  <div x-show="twoKeyOpen" x-cloak class="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center p-4">
+    <div @click.away="twoKeyOpen = false" class="bg-surface border border-hairline rounded-xl max-w-3xl w-full p-6 space-y-5 shadow-lg">
+      <div class="flex items-start justify-between gap-4 border-b border-hairline pb-4">
+        <div>
+          <p class="text-xs font-mono text-ink-muted">Two-key citizen verification gate · <span x-text="activeVerifyCode"></span></p>
+          <h3 class="text-lg font-semibold text-ink">Verify field resolution before closure</h3>
+        </div>
+        <div class="text-right">
+          <span class="text-xs text-ink-muted block">Verification window remaining</span>
+          <span class="font-mono text-sm font-medium text-amberwarn tabular-nums" x-text="countdown72h"></span>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-lg border border-hairline bg-canvas p-4 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-medium text-ink">Before evidence</span>
+            <span class="font-mono text-ink-muted tabular-nums" x-text="lat + ', ' + lon"></span>
+          </div>
+          <div class="h-44 rounded-lg bg-surface border border-hairline flex items-center justify-center text-xs text-ink-muted">Citizen geo-tagged intake photo</div>
+        </div>
+        <div class="rounded-lg border border-hairline bg-canvas p-4 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-medium text-ink">After resolution photo</span>
+            <span class="font-mono text-civic tabular-nums">PostGIS verified: 12.4m (&le;100m)</span>
+          </div>
+          <div class="h-44 rounded-lg bg-surface border border-hairline flex items-center justify-center text-xs text-ink-muted">Field worker geo-tagged completion photo</div>
+        </div>
+      </div>
+      <div class="space-y-2" x-show="pendingCases.length > 0">
+        <label class="block text-xs font-medium text-ink-secondary">Select pending verification ticket</label>
+        <select x-model="selectedPendingId" class="w-full rounded-lg border border-hairline px-3 py-2 text-xs font-mono bg-surface text-ink">
+          <template x-for="pc in pendingCases" :key="pc.complaint_id">
+            <option :value="pc.complaint_id" x-text="pc.tracking_code + ' (' + pc.gps_dist_m + 'm) — ' + pc.summary.slice(0, 50)"></option>
+          </template>
+        </select>
+      </div>
+      <form x-show="selectedPendingId" :action="'/htmx/two-key/' + selectedPendingId + '/verdict/'" method="post" enctype="multipart/form-data" @submit.prevent="submitTwoKey($event)" class="space-y-3">
+        {% csrf_token %}
+        <textarea name="feedback" x-model="verdictFeedback" rows="2" placeholder="Confirm the repair is complete, or explain why the issue remains unresolved..." class="w-full rounded-lg border border-hairline px-3 py-2 text-sm text-ink focus:outline-none focus:border-civic"></textarea>
+        <input type="file" name="evidence_file" accept="image/*" class="block w-full text-xs text-ink-secondary">
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-hairline">
+          <button type="button" @click="twoKeyOpen = false" class="px-4 py-2 rounded-lg border border-hairline text-sm text-ink-secondary hover:bg-canvas">Close</button>
+          <div class="flex items-center gap-2">
+            <button type="submit" @click="selectedVerdict='REJECTED'" class="px-4 py-2 rounded-lg border border-crimson text-crimson text-sm font-medium hover:bg-crimson-tint">Reject &amp; escalate</button>
+            <button type="submit" @click="selectedVerdict='ACCEPTED'" class="px-4 py-2 rounded-lg bg-civic text-white text-sm font-medium hover:bg-civic-hover">Accept &amp; close case</button>
+          </div>
+        </div>
+      </form>
+      <div id="two-key-toast" x-html="verdictHtml"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const GMAPS_KEY = "{{ GOOGLE_MAPS_API_KEY|escapejs }}";
+  let citizenAlpineInstance = null;
+
+  function citizenPortal() {
+    return {
+      isAnonymous: false,
+      recording: false,
+      voiceRecorded: false,
+      voiceAudioUrl: "",
+      textBn: "",
+      textEn: "",
+      useSamplePhoto: true,
+      photoName: "",
+      lat: "23.80690",
+      lon: "90.36870",
+      locating: false,
+      locationBadge: "Mirpur-10, Dhaka, Bangladesh",
+      mapEngineLabel: GMAPS_KEY ? "Google Maps Live GPS" : "CartoDB Fallback Map + Live GPS",
+      trackCodeInput: "",
+      activeVerifyCode: "BD-2026-DHK-9000301",
+      twoKeyOpen: false,
+    otpModalOpen: false,
+    otpPhone: '+8801711000099',
+    otpChallengeId: '',
+    otpDevToast: '',
+    otpCode: '',
+    otpIdType: 'NID',
+    otpIdNumber: '1994261234567',
+      verdictFeedback: "",
+      verdictStatus: "",
+      countdown72h: "70:14:28",
+      gmap: null,
+      gmarker: null,
+      geocoder: null,
+      lmap: null,
+      lmarker: null,
+      mediaRecorder: null,
+      audioChunks: [],
+      recordSeconds: 0,
+      recordInterval: null,
+      recordTimerLabel: "00:00",
+      voicePreviewUrl: "",
+      pendingCases: {{ pending_verify_json|default:"[]"|safe }},
+      selectedPendingId: "{{ pending_verify_cases.0.complaint_id|default:'' }}",
+      selectedVerdict: "ACCEPTED",
+      verdictHtml: "",
+      async toggleVoice() {
+        if (!this.recording) {
+          this.recording = true;
+          this.recordSeconds = 0;
+          this.recordTimerLabel = "00:00";
+          this.recordInterval = setInterval(() => {
+            this.recordSeconds += 1;
+            const m = String(Math.floor(this.recordSeconds / 60)).padStart(2, "0");
+            const s = String(this.recordSeconds % 60).padStart(2, "0");
+            this.recordTimerLabel = m + ":" + s;
+          }, 1000);
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this.audioChunks = [];
+            this.mediaRecorder = new MediaRecorder(stream);
+            this.mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) this.audioChunks.push(e.data); };
+            this.mediaRecorder.onstop = () => {
+              const blob = new Blob(this.audioChunks, { type: "audio/webm" });
+              this.voicePreviewUrl = URL.createObjectURL(blob);
+              const file = new File([blob], "citizen_voice_" + Date.now() + ".webm", { type: "audio/webm" });
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              const inp = document.getElementById("voice-blob-input");
+              if (inp) inp.files = dt.files;
+              this.voiceRecorded = true;
+              stream.getTracks().forEach((t) => t.stop());
+            };
+            this.mediaRecorder.start();
+          } catch (_err) {
+            this.voiceAudioUrl = "/media/voice/simulated_voice_note.webm";
+          }
+        } else {
+          this.recording = false;
+          if (this.recordInterval) clearInterval(this.recordInterval);
+          if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
+            this.mediaRecorder.stop();
+          } else {
+            this.voiceRecorded = true;
+          }
+        }
+      },
+      async requestCitizenOtp() {
+        const fd = new FormData();
+        fd.append("phone_number", this.otpPhone);
+        const csrf = (document.cookie.match(/(^| )csrftoken=([^;]+)/) || [])[2] || "";
+        const res = await fetch("{% url 'portal:htmx-otp-request' %}", { method: "POST", body: fd, headers: { "X-CSRFToken": csrf } });
+        const data = await res.json();
+        if (data.ok) {
+          this.otpChallengeId = data.challenge_id;
+          this.otpCode = data.dev_otp || "";
+          this.otpDevToast = data.message;
+        }
+      },
+      async submitTwoKey(evt) {
+        const fd = new FormData(evt.target);
+        fd.set("verdict", this.selectedVerdict);
+        const resp = await fetch(`/htmx/two-key/${this.selectedPendingId}/verdict/`, { method: "POST", body: fd });
+        this.verdictHtml = await resp.text();
+      },
+      onPhotoSelected(evt) {
+        const f = evt.target.files && evt.target.files[0];
+        this.photoName = f ? f.name : "";
+        if (f) this.useSamplePhoto = false;
+      },
+      setPin(lat, lon, label, zoom) {
+        this.lat = Number(lat).toFixed(5);
+        this.lon = Number(lon).toFixed(5);
+        if (label) this.locationBadge = label;
+        if (this.gmap && this.gmarker) {
+          const pos = { lat: Number(lat), lng: Number(lon) };
+          this.gmap.panTo(pos);
+          if (zoom) this.gmap.setZoom(zoom);
+          this.gmarker.setPosition(pos);
+          if (!label && this.geocoder) {
+            this.geocoder.geocode({ location: pos }, (results, status) => {
+              if (status === "OK" && results && results[0]) {
+                this.locationBadge = results[0].formatted_address;
+              }
+            });
+          }
+        } else if (this.lmap && this.lmarker) {
+          this.lmap.setView([Number(lat), Number(lon)], zoom || 14);
+          this.lmarker.setLatLng([Number(lat), Number(lon)]);
+        }
+      },
+      jumpLocation(lat, lon, label) {
+        this.setPin(lat, lon, label, 14);
+      },
+      useLiveLocation() {
+        if (!navigator.geolocation) {
+          this.locationBadge = "Browser GPS unavailable — click map to set pin";
+          return;
+        }
+        this.locating = true;
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            this.locating = false;
+            this.setPin(pos.coords.latitude, pos.coords.longitude, "", 16);
+            if (this.gmarker && window.google) {
+              this.gmarker.setAnimation(google.maps.Animation.DROP);
+            }
+            if (!this.gmap) {
+              this.locationBadge = `Live GPS locked (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)})`;
+            }
+          },
+          () => {
+            this.locating = false;
+            this.locationBadge = "GPS permission denied — use search or click map";
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      },
+      fillSample(kind) {
+        if (kind === "transformer") {
+          this.textBn = "মিরপুর ১০ নম্বরে DPDC ১১কেভি ট্রান্সফরমার বিস্ফোরণ হয়ে বিদ্যুৎ বিচ্ছিন্ন এবং তার ঝুলে আছে।";
+          this.textEn = "DPDC 11kV transformer fault and sparking live wire near Mirpur-10 circle.";
+          this.useSamplePhoto = true;
+          this.setPin(23.8069, 90.3687, "Mirpur-10 Circle, Dhaka", 15);
+        } else if (kind === "compound") {
+          this.textBn = "গুলশান-২ রোড ৪৫ এ ওয়াসার পানির পাইপ ফেটে রাস্তা ভেঙে গেছে এবং ডেসকোর খুঁটি হেলে পড়েছে।";
+          this.textEn = "Burst WASA water pipe flooded Gulshan-2 Road 45, snapped a DESCO pole, and damaged DNCC road.";
+          this.useSamplePhoto = true;
+          this.setPin(23.7925, 90.4143, "Gulshan-2 Road 45, Dhaka", 15);
+        } else if (kind === "flood") {
+          this.textBn = "সিলেট সদরে বন্যায় ছাদে আটকা পড়েছি, বাঁধ ভেঙে পানিতে বিদ্যুতের তার ছিঁড়ে পড়েছে।";
+          this.textEn = "Family trapped on roof in Sylhet Sadar floodwater with embankment breach and medical emergency.";
+          this.useSamplePhoto = true;
+          this.setPin(24.8949, 91.8687, "Sylhet Sadar Flood Zone, Sylhet", 13);
+        }
+      },
+      initFallbackLeaflet() {
+        if (this.lmap) return;
+        const container = document.getElementById("citizen-pin-map");
+        container.innerHTML = "";
+        this.mapEngineLabel = "CartoDB Fallback Map + Live GPS";
+        this.lmap = L.map("citizen-pin-map").setView([Number(this.lat), Number(this.lon)], 13);
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+          subdomains: "abcd",
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+        }).addTo(this.lmap);
+        this.lmarker = L.marker([Number(this.lat), Number(this.lon)], { draggable: true }).addTo(this.lmap);
+        this.lmap.on("click", (e) => this.setPin(e.latlng.lat, e.latlng.lng, `Pinned (${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)})`));
+        this.lmarker.on("dragend", (e) => {
+          const p = e.target.getLatLng();
+          this.setPin(p.lat, p.lng, `Dragged (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)})`);
+        });
+      },
+      initGoogleMap() {
+        const start = { lat: Number(this.lat), lng: Number(this.lon) };
+        this.gmap = new google.maps.Map(document.getElementById("citizen-pin-map"), {
+          center: start,
+          zoom: 13,
+          mapTypeControl: false,
+          streetViewControl: false
+        });
+        this.geocoder = new google.maps.Geocoder();
+        this.gmarker = new google.maps.Marker({
+          position: start,
+          map: this.gmap,
+          draggable: true,
+          animation: google.maps.Animation.DROP
+        });
+        this.gmap.addListener("click", (e) => this.setPin(e.latLng.lat(), e.latLng.lng(), ""));
+        this.gmarker.addListener("dragend", (e) => this.setPin(e.latLng.lat(), e.latLng.lng(), ""));
+
+        const searchInput = document.getElementById("bd-place-search");
+        if (searchInput && google.maps.places) {
+          const ac = new google.maps.places.Autocomplete(searchInput, {
+            componentRestrictions: { country: "bd" },
+            fields: ["geometry", "formatted_address", "name"]
+          });
+          ac.addListener("place_changed", () => {
+            const place = ac.getPlace();
+            if (place.geometry && place.geometry.location) {
+              this.setPin(
+                place.geometry.location.lat(),
+                place.geometry.location.lng(),
+                place.formatted_address || place.name,
+                15
+              );
+            }
+          });
+        }
+      },
+      init() {
+        citizenAlpineInstance = this;
+        if (!GMAPS_KEY) {
+          this.initFallbackLeaflet();
+        }
+      }
+    };
+  }
+
+  window.initCitizenGoogleMap = function () {
+    if (citizenAlpineInstance) citizenAlpineInstance.initGoogleMap();
+  };
+  window.gm_authFailure = function () {
+    if (citizenAlpineInstance) {
+      citizenAlpineInstance.gmap = null;
+      citizenAlpineInstance.initFallbackLeaflet();
+    }
+  };
+</script>
+{% if GOOGLE_MAPS_API_KEY %}
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&libraries=places&callback=initCitizenGoogleMap"></script>
+{% endif %}
+{% endblock %}

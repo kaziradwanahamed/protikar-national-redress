@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Monthly DDCC Level-3 Escalation Report</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8 text-slate-900 bg-white max-w-4xl mx-auto">
+  <div class="flex items-start justify-between border-b border-slate-300 pb-4 mb-6">
+    <div>
+      <p class="text-xs text-slate-500">Government of the People's Republic of Bangladesh</p>
+      <h1 class="text-xl font-semibold">Monthly DDCC Level-3 Escalation Report</h1>
+    </div>
+    <button onclick="window.print()" class="print:hidden px-3 py-1.5 rounded border border-slate-300 text-xs">Print / Save PDF</button>
+  </div>
+  <p class="text-xs text-slate-500 mb-4">Generated: {{ generated_at|date:"Y-m-d H:i" }} BST</p>
+  <table class="w-full text-left text-xs border-collapse">
+    <thead>
+      <tr class="border-b border-slate-300">
+        <th class="py-2">Month</th>
+        <th class="py-2">District BBS</th>
+        <th class="py-2">Tracking Code</th>
+        <th class="py-2">APA Impact</th>
+        <th class="py-2">Summary</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr class="border-b border-slate-200">
+        <td class="py-2 font-mono">{{ item.agenda_month }}</td>
+        <td class="py-2 font-mono">{{ item.district_bbs_code }}</td>
+        <td class="py-2 font-mono">{{ item.complaint.tracking_code }}</td>
+        <td class="py-2 font-mono">{{ item.escalation_event.apa_scorecard_impact }}</td>
+        <td class="py-2">{{ item.summary }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="py-4 text-slate-500">No Level-3 DDCC items recorded.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class EsbConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.esb"
+    verbose_name = "National ESB (Doptor, e-GP, MyGov, Kafka)"

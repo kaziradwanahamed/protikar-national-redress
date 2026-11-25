@@ -1,0 +1,28 @@
+<div class="rounded-lg border px-4 py-3 text-xs flex flex-wrap items-center justify-between gap-3 {% if is_valid %}border-civic/40 bg-civic-tint text-civic{% else %}border-crimson/40 bg-crimson-tint text-crimson{% endif %}">
+  <div class="flex items-center gap-2.5">
+    <span class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 {% if is_valid %}bg-civic text-white{% else %}bg-crimson text-white{% endif %}">
+      {% if is_valid %}
+      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      {% else %}
+      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      {% endif %}
+    </span>
+    <div>
+      <p class="font-semibold">
+        {% if checked_count == 0 %}
+          {{ t.analytics_audit_empty }}
+        {% elif is_valid %}
+          {{ t.analytics_audit_verified }}
+        {% else %}
+          {{ t.analytics_audit_broken }} ({{ broken_id }})
+        {% endif %}
+      </p>
+      <p class="font-mono text-[11px] opacity-90 mt-0.5 tabular-nums">
+        {{ t.analytics_audit_blocks }}: {{ checked_count }} · {{ t.analytics_audit_head }}: {{ head_hash|slice:":16" }}… · {{ verified_at|date:"Y-m-d H:i:s" }} UTC
+      </p>
+    </div>
+  </div>
+  <span class="font-mono text-[11px] px-2 py-0.5 rounded bg-surface/80 border border-current/20">
+    {% if is_valid %}SHA-256 OK{% else %}TAMPER ALERT{% endif %}
+  </span>
+</div>

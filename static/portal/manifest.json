@@ -1,0 +1,20 @@
+{
+  "name": "Protikar Field Worker — Bangladesh Redress",
+  "short_name": "Protikar Field",
+  "description": "Offline-first field resolution app for Bangladesh government field workers with IndexedDB sync and <140-byte 2G SMS fallback.",
+  "start_url": "/officer/field/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F6F3",
+  "theme_color": "#0F5C43",
+  "lang": "bn",
+  "icons": [
+    {
+      "src": "/static/portal/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

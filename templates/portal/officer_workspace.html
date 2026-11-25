@@ -1,0 +1,169 @@
+{% extends "portal/base.html" %}
+{% load portal_i18n %}
+{% block title %}{{ t.nav_officer }} · {{ t.brand_title }}{% endblock %}
+
+{% block content %}
+<div x-data="{ modalType: null, activeCode: '', activeId: '', targetSeat: '{{ all_seats.0.doptor_seat_id|default:"SEAT-DWASA-GRO-04" }}' }" class="space-y-6">
+  <section class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-hairline pb-6">
+    <div>
+      <p class="text-xs font-mono text-ink-muted">Doptor organogram seat · {{ seat_id }}</p>
+      <h1 class="text-2xl font-semibold text-ink mt-1">{{ t.officer_heading }}</h1>
+      <p class="text-sm text-ink-secondary mt-1">{{ t.officer_subhead }}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <form method="get" class="flex items-center gap-2">
+        <select name="seat_id" onchange="this.form.submit()" class="rounded-lg border border-hairline bg-surface px-3 py-2 text-xs font-medium text-ink">
+          <option value="">All active seats</option>
+          {% for s in all_seats %}
+          <option value="{{ s.doptor_seat_id }}" {% if s.doptor_seat_id == seat_id %}selected{% endif %}>{{ s.designation_en }} ({{ s.office.office_code }})</option>
+          {% endfor %}
+        </select>
+      </form>
+      <a href="{% url 'portal:field-worker' %}" class="px-4 py-2 rounded-lg border border-hairline bg-surface text-xs font-medium text-ink hover:bg-canvas">
+        Mobile field view
+      </a>
+    </div>
+  </section>
+
+  <div id="officer-toast"></div>
+
+  <!-- Active Seat Queue Table -->
+  <section class="bg-surface border border-hairline rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-canvas border-b border-hairline text-xs text-ink-muted">
+          <tr>
+            <th class="py-3 px-4 font-medium">Tracking code</th>
+            <th class="py-3 px-4 font-medium">Priority &amp; status</th>
+            <th class="py-3 px-4 font-medium">SLA elapsed</th>
+            <th class="py-3 px-4 font-medium">Transfers</th>
+            <th class="py-3 px-4 font-medium text-right">Governance actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-hairline">
+          {% for row in rows %}
+          <tr class="hover:bg-canvas/60 transition-colors">
+            <td class="py-3.5 px-4">
+              <span class="font-mono text-xs font-medium text-ink block">{{ row.complaint.tracking_code }}</span>
+              <span class="text-xs text-ink-secondary line-clamp-1">{{ row.complaint.raw_text_en|default:row.complaint.raw_text_bn }}</span>
+            </td>
+            <td class="py-3.5 px-4">
+              <span class="font-mono text-xs text-ink">{{ row.complaint.urgency_tier|urgency_label:portal_lang }}</span>
+              <span class="block text-xs text-ink-muted">{{ row.complaint.status|status_label:portal_lang }}</span>
+            </td>
+            <td class="py-3.5 px-4">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono tabular-nums
+                {% if row.sla_band == 'breach' %}bg-crimson-tint text-crimson
+                {% elif row.sla_band == 'warning' %}bg-amberwarn-tint text-amberwarn
+                {% else %}bg-civic-tint text-civic{% endif %}">
+                <span class="w-1.5 h-1.5 rounded-full {% if row.sla_band == 'breach' %}bg-crimson{% elif row.sla_band == 'warning' %}bg-amberwarn{% else %}bg-civic{% endif %}"></span>
+                {{ row.sla_pct }}%
+              </span>
+            </td>
+            <td class="py-3.5 px-4 font-mono text-xs tabular-nums text-ink-secondary">
+              {{ row.complaint.transfer_count }} / 2
+            </td>
+            <td class="py-3.5 px-4 text-right">
+              <div class="inline-flex flex-wrap justify-end gap-2">
+                {% if row.gro_one_click_reassign %}
+                <button type="button" @click="modalType='reassign'; activeCode='{{ row.complaint.tracking_code }}'; activeId='{{ row.complaint.complaint_id }}'" class="px-2.5 py-1.5 rounded-lg bg-amberwarn-tint text-amberwarn text-xs font-medium">
+                  1-click reassign ({{ row.ai_confidence }}%)
+                </button>
+                {% endif %}
+                <button type="button" {% if not row.can_transfer %}disabled{% endif %}
+                  @click="modalType='transfer'; activeCode='{{ row.complaint.tracking_code }}'; activeId='{{ row.complaint.complaint_id }}'"
+                  class="px-2.5 py-1.5 rounded-lg border border-hairline text-xs font-medium {% if row.can_transfer %}text-ink hover:bg-canvas{% else %}text-ink-muted opacity-50 cursor-not-allowed{% endif %}">
+                  Transfer
+                </button>
+                <button type="button" @click="modalType='progress_update'; activeCode='{{ row.complaint.tracking_code }}'; activeId='{{ row.complaint.complaint_id }}'" class="px-2.5 py-1.5 rounded-lg bg-civic-tint text-civic text-xs font-medium hover:bg-civic hover:text-white transition-colors">
+                  Progress Update
+                </button>
+                <button type="button" @click="modalType='assign_field'; activeCode='{{ row.complaint.tracking_code }}'; activeId='{{ row.complaint.complaint_id }}'" class="px-2.5 py-1.5 rounded-lg border border-hairline text-xs font-medium text-ink hover:bg-canvas">
+                  Assign field
+                </button>
+                <button type="button" @click="modalType='procurement'; activeCode='{{ row.complaint.tracking_code }}'; activeId='{{ row.complaint.complaint_id }}'" class="px-2.5 py-1.5 rounded-lg border border-hairline text-xs font-medium text-ink hover:bg-canvas">
+                  e-GP hold
+                </button>
+                <button type="button" @click="modalType='contest'; activeCode='{{ row.complaint.tracking_code }}'; activeId='{{ row.complaint.complaint_id }}'" class="px-2.5 py-1.5 rounded-lg border border-hairline text-xs font-medium text-ink hover:bg-canvas">
+                  48h reply
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="py-8 px-4 text-center text-sm text-ink-muted">No active tickets assigned to this seat. Select "All active seats" above or run seed_demo_data.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Unified Action Modal (Clean Seat Dropdown, No Raw IDs) -->
+  <div x-show="modalType !== null" x-cloak class="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center p-4">
+    <div @click.away="modalType = null" class="bg-surface border border-hairline rounded-xl max-w-lg w-full p-6 space-y-4 shadow-lg">
+      <div class="flex items-center justify-between border-b border-hairline pb-3">
+        <h3 class="text-base font-semibold text-ink" x-text="modalType === 'procurement' ? 'Place on e-GP / D-Nothi procurement hold' : (modalType === 'contest' ? '48-hour Right of Reply counter-evidence' : 'Transfer or reassign department')"></h3>
+        <span class="font-mono text-xs text-ink-muted" x-text="activeCode"></span>
+      </div>
+
+      <form :action="'/htmx/officer/' + activeId + '/action/'" method="post" enctype="multipart/form-data"
+        @submit.prevent="fetch('/htmx/officer/' + activeId + '/action/', { method: 'POST', body: new FormData($event.target) }).then(r => r.text()).then(html => { document.getElementById('officer-toast').innerHTML = html; modalType = null; })"
+        class="space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" :value="modalType === 'procurement' ? 'procurement_hold' : modalType">
+
+        <template x-if="modalType === 'progress_update'">
+          <div class="space-y-2 text-sm">
+            <p class="text-xs text-ink-secondary">Post an interim progress report (FR07). Immediately appears on the citizen timeline and triggers SMS/Push notification.</p>
+            <textarea name="progress_message" rows="3" required placeholder="e.g., Site inspection completed, transformer parts requisitioned from DPDC store." class="w-full rounded-lg border border-hairline px-3 py-2 text-sm"></textarea>
+          </div>
+        </template>
+
+        <template x-if="modalType === 'assign_field'">
+          <div class="space-y-2 text-sm">
+            <p class="text-xs text-ink-secondary">Assign to a Field Worker seat with an automatic 70% SLA sub-deadline.</p>
+            <select name="field_worker_seat_id" class="w-full rounded-lg border border-hairline px-3 py-2 text-sm bg-surface text-ink">
+              {% for s in field_seats %}
+              <option value="{{ s.doptor_seat_id }}">{{ s.designation_en }} — {{ s.office.office_code }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </template>
+
+        <template x-if="modalType === 'procurement'">
+          <div class="space-y-2 text-sm">
+            <p class="text-xs text-ink-secondary">Verified e-GP Tender ID or D-Nothi reference pauses SLA and publishes the 4-stage Public Capital Milestone Tracker.</p>
+            <input type="text" name="reference_id" value="EGP-2026-441092" required class="w-full rounded-lg border border-hairline px-3 py-2 font-mono text-sm">
+          </div>
+        </template>
+
+        <template x-if="modalType === 'contest'">
+          <div class="space-y-2 text-sm">
+            <p class="text-xs text-ink-secondary">Upload counter-evidence within 48 hours before any APA/KPI penalty applies.</p>
+            <input type="file" name="rebuttal_file" accept=".pdf,image/*" class="block w-full text-xs text-ink-secondary">
+          </div>
+        </template>
+
+        <template x-if="modalType === 'transfer' || modalType === 'reassign'">
+          <div class="space-y-2 text-sm">
+            <p class="text-xs text-ink-secondary">Select receiving Doptor seat (max 2 transfers, within first 15% of SLA).</p>
+            <select name="target_seat_id" x-model="targetSeat" class="w-full rounded-lg border border-hairline px-3 py-2 text-sm bg-surface text-ink">
+              {% for s in all_seats %}
+              <option value="{{ s.doptor_seat_id }}">{{ s.designation_en }} — {{ s.office.name_en }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" name="reason" value="Jurisdiction realignment verified by GRO." required class="w-full rounded-lg border border-hairline px-3 py-2 text-xs">
+          </div>
+        </template>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" @click="modalType = null" class="px-4 py-2 rounded-lg border border-hairline text-sm text-ink-secondary">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-civic text-white text-sm font-medium hover:bg-civic-hover">Confirm action</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

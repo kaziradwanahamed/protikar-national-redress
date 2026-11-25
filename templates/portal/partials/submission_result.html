@@ -1,0 +1,29 @@
+<div class="mt-4 rounded-xl border {% if needs_clarification %}border-amberwarn bg-amberwarn-tint{% else %}border-civic bg-civic-tint{% endif %} p-4 space-y-3">
+  <div class="flex items-center justify-between gap-4">
+    <span class="font-mono text-xs font-medium text-ink">{{ complaint.tracking_code }}</span>
+    <span class="text-xs font-mono text-ink-secondary tabular-nums">AI confidence: {{ triage_run.confidence_score|floatformat:2 }}</span>
+  </div>
+  {% if needs_clarification %}
+  <p class="text-sm font-medium text-ink">Additional details needed before routing (&lt;60% confidence)</p>
+  <ul class="space-y-2 text-xs text-ink-secondary">
+    {% for q in triage_run.clarifying_questions %}
+    <li class="p-2.5 rounded-lg bg-surface border border-hairline">
+      <p class="font-medium text-ink">{{ q.en }}</p>
+      <p class="text-ink-muted mt-0.5">{{ q.bn }}</p>
+    </li>
+    {% endfor %}
+  </ul>
+  <form hx-post="{% url 'portal:htmx-clarify' complaint.complaint_id %}" hx-target="#submission-result" hx-swap="innerHTML" class="space-y-2 pt-1">
+    {% csrf_token %}
+    <input type="text" name="clarification_answer" required placeholder="Type the affected utility/service and landmark (e.g., WASA water pipe in Mirpur-10)..." class="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-xs text-ink">
+    <button type="submit" class="px-4 py-2 rounded-lg bg-civic text-white text-xs font-medium hover:bg-civic-hover">
+      Confirm details &amp; finalize ticket
+    </button>
+  </form>
+  {% else %}
+  <p class="text-sm text-ink">
+    Decision: <span class="font-mono font-medium">{{ triage_run.routing_decision }}</span>
+    {% if triage_run.primary_agency_code %} · Agency: <span class="font-medium">{{ triage_run.primary_agency_code }}</span>{% endif %}
+  </p>
+  {% endif %}
+</div>

@@ -1,0 +1,89 @@
+{% extends "portal/base.html" %}
+{% load portal_i18n %}
+{% block title %}{{ t.nav_udc }} · {{ t.brand_title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+  <section class="no-print border-b border-hairline pb-6">
+    <h1 class="text-2xl font-semibold text-ink">{{ t.udc_heading }}</h1>
+    <p class="text-sm text-ink-secondary mt-1">{{ t.udc_subhead }}</p>
+  </section>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <section class="no-print lg:col-span-7 bg-surface border border-hairline rounded-xl p-6">
+      <form method="post" class="space-y-5">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-ink-secondary mb-1.5">UDC center code</label>
+            <input type="text" name="udc_code" value="UDC-SAVAR-01" class="w-full rounded-lg border border-hairline px-3 py-2 text-sm font-mono text-ink">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-ink-secondary mb-1.5">BBS Upazila / Union code</label>
+            <input type="text" name="bbs_geo_code" value="302672" class="w-full rounded-lg border border-hairline px-3 py-2 text-sm font-mono text-ink">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-ink-secondary mb-1.5">Citizen full name</label>
+            <input type="text" name="citizen_name" required placeholder="Md. Abdul Karim" class="w-full rounded-lg border border-hairline px-3 py-2 text-sm text-ink">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-ink-secondary mb-1.5">Citizen mobile number</label>
+            <input type="tel" name="citizen_phone" required placeholder="+88017XXXXXXXX" class="w-full rounded-lg border border-hairline px-3 py-2 text-sm font-mono text-ink">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-ink-secondary mb-1.5">Grievance summary (Bangla / English)</label>
+          <textarea name="raw_text_bn" rows="4" required placeholder="অভিযোগের বিস্তারিত বিবরণ লিখুন..." class="w-full rounded-lg border border-hairline px-3 py-2 text-sm text-ink"></textarea>
+        </div>
+
+        <input type="hidden" name="lat" value="23.8583">
+        <input type="hidden" name="lon" value="90.2667">
+
+        <button type="submit" class="px-5 py-2.5 rounded-lg bg-civic text-white text-sm font-medium hover:bg-civic-hover transition-colors">
+          File walk-in grievance &amp; generate receipt
+        </button>
+      </form>
+    </section>
+
+    <!-- Printable Statutory Tracking Receipt -->
+    <section class="lg:col-span-5 bg-surface border border-hairline rounded-xl p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-hairline pb-3">
+        <div>
+          <p class="text-xs text-ink-muted">{{ t.brand_gov }}</p>
+          <h2 class="text-base font-semibold text-ink">Citizen tracking receipt</h2>
+        </div>
+        <button type="button" onclick="window.print()" class="no-print px-3 py-1.5 rounded-lg border border-hairline text-xs font-medium text-ink hover:bg-canvas">
+          {{ t.udc_print }}
+        </button>
+      </div>
+
+      {% if receipt_complaint %}
+      <dl class="space-y-3 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-ink-muted">Tracking code</dt>
+          <dd class="font-mono font-semibold text-civic">{{ receipt_complaint.tracking_code }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-ink-muted">Status</dt>
+          <dd class="font-mono text-ink">{{ receipt_complaint.status|status_label:portal_lang }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-ink-muted">BBS jurisdiction</dt>
+          <dd class="font-mono text-ink">{{ receipt_complaint.admin_geo_code }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-ink-muted">Filed timestamp</dt>
+          <dd class="font-mono text-xs text-ink tabular-nums">{{ now|date:"Y-m-d H:i" }} BST</dd>
+        </div>
+      </dl>
+      <p class="text-xs text-ink-secondary pt-3 border-t border-hairline">
+        SMS check: send <span class="font-mono">STATUS {{ receipt_complaint.tracking_code }}</span> to 333.
+      </p>
+      {% else %}
+      <p class="text-xs text-ink-muted">Submit a walk-in citizen grievance on the left to generate a print-ready tracking slip.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

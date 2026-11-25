@@ -1,0 +1,257 @@
+{% extends "portal/base.html" %}
+{% load portal_i18n %}
+{% block title %}{{ t.nav_command }} · {{ t.brand_title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+  <!-- Header & Export Controls -->
+  <section class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-hairline pb-6">
+    <div>
+      <h1 class="text-2xl font-semibold text-ink">{{ t.command_heading }}</h1>
+      <p class="text-sm text-ink-secondary mt-1">{{ t.command_subhead }}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="{% url 'portal:export-ddcc-csv' %}" class="px-3.5 py-2 rounded-lg border border-hairline bg-surface text-xs font-medium text-ink hover:bg-canvas transition-colors">{{ t.export_csv }}</a>
+      <a href="{% url 'portal:export-ddcc-pdf' %}" target="_blank" class="px-3.5 py-2 rounded-lg border border-hairline bg-surface text-xs font-medium text-ink hover:bg-canvas transition-colors">{{ t.export_pdf }}</a>
+      <form hx-post="{% url 'portal:htmx-toggle-crisis' %}" hx-target="#command-toast" hx-swap="innerHTML" class="inline">{% csrf_token %}<button type="submit" id="crisis-toggle-btn" class="px-3.5 py-2 rounded-lg bg-crimson text-white text-xs font-medium hover:opacity-90 transition-opacity">{{ t.crisis_toggle }}</button></form>
+    </div>
+  </section>
+
+  <div id="command-toast"></div>
+
+  <!-- Real-Time APA Scorecard Stat Row (Clean Numbers Only) -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-surface border border-hairline rounded-xl p-5">
+      <p class="text-xs text-ink-muted">National APA compliance</p>
+      <p class="text-2xl font-semibold font-mono tabular-nums text-civic mt-1">{{ metrics.apa_score }}%</p>
+      <p class="text-xs text-ink-secondary mt-1">Weighted across active seats</p>
+    </div>
+    <div class="bg-surface border border-hairline rounded-xl p-5">
+      <p class="text-xs text-ink-muted">Total logged cases</p>
+      <p class="text-2xl font-semibold font-mono tabular-nums text-ink mt-1">{{ metrics.total_complaints }}</p>
+      <p class="text-xs text-ink-secondary mt-1">{{ metrics.closed_complaints }} closed via two-key gate</p>
+    </div>
+    <div class="bg-surface border border-hairline rounded-xl p-5">
+      <p class="text-xs text-ink-muted">100% SLA breaches</p>
+      <p class="text-2xl font-semibold font-mono tabular-nums text-amberwarn mt-1">{{ metrics.breach_count }}</p>
+      <p class="text-xs text-ink-secondary mt-1">Auto-escalated on 4-tier ladder</p>
+    </div>
+    <div class="bg-surface border border-hairline rounded-xl p-5">
+      <p class="text-xs text-ink-muted">Active disaster zones</p>
+      <p class="text-2xl font-semibold font-mono tabular-nums text-crimson mt-1">{{ metrics.active_crisis_count }}</p>
+      <p class="text-xs text-ink-secondary mt-1">P3/P4 SLAs suspended in zone</p>
+    </div>
+  </section>
+
+  <!-- Hero Product Moment: Live Disaster Crisis Command Map (8 cols) + P1 Rescue Stream (4 cols) -->
+  <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+    <div class="lg:col-span-8 bg-surface border border-hairline rounded-xl p-5 flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-ink">Live disaster surge heatmap (Uber H3 Res-8)</h2>
+          <p class="text-xs text-ink-muted">WebSocket telemetry from Redis macro-incident counters</p>
+        </div>
+        <span id="ws-status" class="inline-flex items-center gap-1.5 text-xs font-mono text-ink-secondary">
+          <span class="w-1.5 h-1.5 rounded-full bg-civic"></span>
+          ws/disaster/command/
+        </span>
+      </div>
+      <div id="command-h3-map" class="h-80 w-full rounded-lg border border-hairline z-10"></div>
+    </div>
+
+    <div class="lg:col-span-4 bg-surface border border-hairline rounded-xl p-5 flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-base font-semibold text-ink">P1 life-safety rescue stream</h2>
+        <span class="text-xs font-mono text-crimson">999 · Fire · CPP</span>
+      </div>
+      <div id="rescue-stream" class="space-y-2.5 overflow-y-auto max-h-80">
+        {% for d in fastlane_stream %}
+        <div class="p-3 rounded-lg bg-crimson-tint/50 border border-crimson/20 space-y-1">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="text-crimson font-medium">{{ d.h3_res8_index }}</span>
+            <span class="text-ink-muted">{{ d.status|status_label:portal_lang }}</span>
+          </div>
+          <p class="text-xs text-ink">{{ d.raw_message }}</p>
+          <p class="text-[11px] font-mono text-ink-secondary">{{ d.citizen_phone|default:"Anonymous SOS" }}</p>
+        </div>
+        {% empty %}
+        <p class="text-xs text-ink-muted">No active P1 life-safety rescue dispatches in stream.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- Jurisdiction Arbitration Queue & Monthly DDCC Level-3 Escalations -->
+  <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div class="lg:col-span-6 bg-surface border border-hairline rounded-xl p-5 space-y-4">
+      <h2 class="text-base font-semibold text-ink">Jurisdiction arbitration queue (UNO / DC / Cabinet)</h2>
+      <div class="divide-y divide-hairline">
+        {% for arb in arbitration_cases %}
+        <div class="py-3 flex items-center justify-between gap-3">
+          <div>
+            <span class="font-mono text-xs font-medium text-ink">{{ arb.complaint.tracking_code }}</span>
+            <p class="text-xs text-ink-secondary">{{ arb.get_jurisdiction_scope_display }}</p>
+          </div>
+          <div class="text-right font-mono text-xs tabular-nums">
+            <span class="block text-crimson">Due {{ arb.decision_sla_deadline_at|date:"M d H:i" }}</span>
+            <span class="text-ink-muted">{{ arb.arbitrator_seat_id }}</span>
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-xs text-ink-muted py-4">No arbitration-locked cases pending ruling.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="lg:col-span-6 bg-surface border border-hairline rounded-xl p-5 space-y-4">
+      <h2 class="text-base font-semibold text-ink">Monthly DDCC Level-3 escalations</h2>
+      <div class="divide-y divide-hairline">
+        {% for item in ddcc_items %}
+        <div class="py-3 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <span class="font-mono text-xs font-medium text-ink">{{ item.complaint.tracking_code }} · BBS {{ item.district_bbs_code }}</span>
+            <p class="text-xs text-ink-secondary truncate">{{ item.summary }}</p>
+          </div>
+          <span class="shrink-0 font-mono text-xs text-amberwarn tabular-nums">{{ item.agenda_month }}</span>
+        </div>
+        {% empty %}
+        <p class="text-xs text-ink-muted py-4">No Tier-3 breaches scheduled for the current DDCC agenda.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- FR020: External Government Integrations (ESB) Console -->
+  <section class="bg-surface border border-hairline rounded-xl p-5 space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-base font-semibold text-ink">External Government Integrations (ESB)</h2>
+        <p class="text-xs text-ink-secondary">Live 3-tier adapter health, last sync timestamp, and on-demand sync test for national registries &amp; utilities.</p>
+      </div>
+      <span class="font-mono text-xs text-civic">FR020 · 3-Tier ESB</span>
+    </div>
+    <div id="esb-sync-toast"></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {% for ep in esb_adapters %}
+      <div class="rounded-lg border border-hairline bg-canvas/60 p-3.5 flex flex-col justify-between gap-2.5">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <span class="font-mono text-xs font-semibold text-ink">{{ ep.agency_code }}</span>
+            <p class="text-xs text-ink-secondary">{{ ep.agency_name }}</p>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-mono {% if ep.is_active %}bg-civic-tint text-civic{% else %}bg-crimson-tint text-crimson{% endif %}">
+            {% if ep.is_active %}HEALTHY{% else %}OFFLINE{% endif %}
+          </span>
+        </div>
+        <div class="flex items-center justify-between gap-2 text-[11px] font-mono text-ink-muted border-t border-hairline pt-2">
+          <span>Sync: {% if ep.last_synced_at %}{{ ep.last_synced_at|date:"M d H:i:s" }}{% else %}Never{% endif %}</span>
+          <form hx-post="{% url 'portal:htmx-esb-sync' ep.agency_code %}" hx-target="#esb-sync-toast" hx-swap="innerHTML">
+            {% csrf_token %}
+            <button type="submit" class="px-2.5 py-1 rounded border border-hairline bg-surface text-ink hover:border-civic hover:text-civic transition-colors">
+              Test Sync
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const CMD_GMAPS_KEY = "{{ GOOGLE_MAPS_API_KEY|escapejs }}";
+  const initialCells = {{ heatmap_cells_json|safe }};
+  const liveComplaints = {{ complaints_map_json|default:"[]"|safe }};
+  const URGENCY_COLORS = { P1: "#B91C1C", P2: "#D97706", P3: "#2563EB", P4: "#64748B" };
+
+  function initCommandFallbackLeaflet() {
+    const map = L.map("command-h3-map").setView([23.8103, 90.4125], 7);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+    }).addTo(map);
+
+    liveComplaints.forEach((c) => {
+      const color = URGENCY_COLORS[c.urgency_tier] || "#64748B";
+      L.circleMarker([c.lat, c.lon], {
+        radius: c.urgency_tier === "P1" ? 8 : 6,
+        color: "#FFFFFF", weight: 1.5, fillColor: color, fillOpacity: 0.9
+      }).bindPopup(`<b>${c.tracking_code}</b> [${c.urgency_tier} · ${c.status}]<br>${c.summary}`).addTo(map);
+    });
+
+    const baseCoords = [[24.8949, 91.8687], [23.8069, 90.3687], [23.0159, 91.3976]];
+    initialCells.forEach((cell, idx) => {
+      const pos = baseCoords[idx % baseCoords.length];
+      L.circle(pos, {
+        color: "#B91C1C", fillColor: "#B91C1C", fillOpacity: 0.2,
+        radius: 3500 + (cell.incident_count * 400)
+      }).bindPopup("H3 Res-8: " + cell.h3_res8_index + " · Count: " + cell.incident_count).addTo(map);
+    });
+  }
+
+  window.initCommandGoogleMap = function () {
+    const map = new google.maps.Map(document.getElementById("command-h3-map"), {
+      center: { lat: 23.8103, lng: 90.4125 },
+      zoom: 7,
+      streetViewControl: false
+    });
+    const infoWindow = new google.maps.InfoWindow();
+
+    liveComplaints.forEach((c) => {
+      const color = URGENCY_COLORS[c.urgency_tier] || "#64748B";
+      const marker = new google.maps.Marker({
+        position: { lat: c.lat, lng: c.lon },
+        map,
+        title: `${c.tracking_code} (${c.urgency_tier})`,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: c.urgency_tier === "P1" ? 8 : 6,
+          fillColor: color,
+          fillOpacity: 0.95,
+          strokeColor: "#FFFFFF",
+          strokeWeight: 1.5
+        }
+      });
+      marker.addListener("click", () => {
+        infoWindow.setContent(`<strong>${c.tracking_code}</strong> [${c.urgency_tier} · ${c.status}]<br>${c.summary}`);
+        infoWindow.open(map, marker);
+      });
+    });
+
+    const baseCoords = [{ lat: 24.8949, lng: 91.8687 }, { lat: 23.8069, lng: 90.3687 }, { lat: 23.0159, lng: 91.3976 }];
+    initialCells.forEach((cell, idx) => {
+      new google.maps.Circle({
+        map,
+        center: baseCoords[idx % baseCoords.length],
+        radius: 3500 + (cell.incident_count * 400),
+        strokeColor: "#B91C1C",
+        strokeOpacity: 0.75,
+        strokeWeight: 1.5,
+        fillColor: "#B91C1C",
+        fillOpacity: 0.18
+      });
+    });
+  };
+
+  window.gm_authFailure = function () { initCommandFallbackLeaflet(); };
+  if (!CMD_GMAPS_KEY) { initCommandFallbackLeaflet(); }
+
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(proto + "://" + window.location.host + "/ws/disaster/command/");
+  ws.onmessage = (evt) => {
+    const data = JSON.parse(evt.data);
+    if (data.type === "rescue.dispatch") {
+      const box = document.getElementById("rescue-stream");
+      const el = document.createElement("div");
+      el.className = "p-3 rounded-lg bg-crimson-tint/50 border border-crimson/20 text-xs";
+      el.textContent = data.raw_message || "Live P1 Rescue Alert";
+      box.prepend(el);
+    }
+  };
+</script>
+{% if GOOGLE_MAPS_API_KEY %}
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&callback=initCommandGoogleMap"></script>
+{% endif %}
+{% endblock %}

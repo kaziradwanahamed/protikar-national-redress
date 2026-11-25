@@ -1,0 +1,244 @@
+{% extends "portal/base.html" %}
+{% load portal_i18n %}
+{% block title %}{{ t.nav_analytics }} · {{ t.brand_title }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div class="max-w-3xl">
+      <p class="text-xs font-mono text-civic">{{ t.brand_gov }}</p>
+      <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight text-ink mt-1">{{ t.analytics_heading }}</h1>
+      <p class="text-sm text-ink-secondary mt-1 leading-relaxed">{{ t.analytics_subhead }}</p>
+    </div>
+    <a href="{% url 'portal:home' %}" class="px-4 py-2 rounded-lg bg-civic text-white text-xs font-medium hover:bg-civic-hover transition-colors">
+      {{ t.submit_grievance }}
+    </a>
+  </div>
+
+  <!-- Top KPI Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-surface border border-hairline rounded-xl p-5">
+      <p class="text-xs text-ink-muted">{{ t.analytics_kpi_total }}</p>
+      <p class="text-3xl font-semibold font-mono tabular-nums text-ink mt-1.5">{{ total_complaints }}</p>
+    </div>
+    <div class="bg-surface border border-hairline rounded-xl p-5">
+      <p class="text-xs text-ink-muted">{{ t.analytics_kpi_sla }}</p>
+      <p class="text-3xl font-semibold font-mono tabular-nums text-civic mt-1.5">{{ overall_sla_pct }}%</p>
+    </div>
+    <div class="bg-surface border border-hairline rounded-xl p-5">
+      <p class="text-xs text-ink-muted">{{ t.analytics_kpi_trust }}</p>
+      <p class="text-3xl font-semibold font-mono tabular-nums text-ink mt-1.5">{{ trust_score_pct }}%</p>
+      <p class="text-[11px] text-ink-muted mt-1 tabular-nums">{{ accepted_reports }} / {{ decided_reports }} {{ t.analytics_trust_confirmed }}</p>
+    </div>
+    <div class="bg-surface border border-hairline rounded-xl p-5">
+      <p class="text-xs text-ink-muted">{{ t.analytics_kpi_ledger }}</p>
+      <p class="text-3xl font-semibold font-mono tabular-nums text-ink mt-1.5">{{ audit_count }}</p>
+      <p class="text-[11px] font-mono text-ink-muted mt-1 truncate">{% if latest_audit_hash %}{{ latest_audit_hash|slice:":14" }}…{% else %}GENESIS{% endif %}</p>
+    </div>
+  </div>
+
+  <!-- Tamper-Proof Audit Ledger Verifier -->
+  <section class="bg-surface border border-hairline rounded-xl p-5 space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h2 class="text-base font-semibold text-ink">{{ t.analytics_audit_title }}</h2>
+        <p class="text-xs text-ink-secondary mt-0.5">{{ t.analytics_audit_sub }}</p>
+      </div>
+      <form hx-post="{% url 'portal:htmx-verify-audit-chain' %}" hx-target="#audit-chain-result" hx-swap="innerHTML">
+        {% csrf_token %}
+        <button type="submit" id="verify-audit-btn" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-civic text-white text-xs font-medium hover:bg-civic-hover transition-colors">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3l8 4v6c0 5-3.5 7.5-8 8-4.5-.5-8-3-8-8V7l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+          {{ t.analytics_audit_btn }}
+        </button>
+      </form>
+    </div>
+    <div id="audit-chain-result" class="text-xs text-ink-muted">
+      {{ t.analytics_audit_blocks }}: <span class="font-mono text-ink">{{ audit_count }}</span>
+    </div>
+  </section>
+
+  <!-- Department Leaderboard (Chart + Table) -->
+  <section class="bg-surface border border-hairline rounded-xl p-5 space-y-5">
+    <div>
+      <h2 class="text-base font-semibold text-ink">{{ t.analytics_dept_title }}</h2>
+      <p class="text-xs text-ink-secondary mt-0.5">{{ t.analytics_dept_sub }}</p>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div class="lg:col-span-5 h-72">
+        <canvas id="deptLeaderboardChart"></canvas>
+      </div>
+      <div class="lg:col-span-7 overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="border-b border-hairline text-ink-muted">
+              <th class="py-2.5 pr-3 font-medium">{{ t.analytics_col_agency }}</th>
+              <th class="py-2.5 px-3 font-medium text-right">{{ t.analytics_col_total }}</th>
+              <th class="py-2.5 px-3 font-medium text-right">{{ t.analytics_col_resolved }}</th>
+              <th class="py-2.5 px-3 font-medium text-right">{{ t.analytics_col_sla }}</th>
+              <th class="py-2.5 pl-3 font-medium text-right">{{ t.analytics_col_avg_hrs }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-hairline">
+            {% for row in leaderboard %}
+            <tr class="hover:bg-canvas/60">
+              <td class="py-2.5 pr-3 font-medium text-ink">
+                <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-canvas border border-hairline mr-1.5">{{ row.code }}</span>
+                {{ row.name }}
+              </td>
+              <td class="py-2.5 px-3 text-right font-mono tabular-nums text-ink">{{ row.total }}</td>
+              <td class="py-2.5 px-3 text-right font-mono tabular-nums text-ink-secondary">{{ row.resolved }}</td>
+              <td class="py-2.5 px-3 text-right font-mono tabular-nums">
+                <span class="px-2 py-0.5 rounded {% if row.sla_pct >= 85 %}bg-civic-tint text-civic{% elif row.sla_pct >= 65 %}bg-amberwarn-tint text-amberwarn{% else %}bg-crimson-tint text-crimson{% endif %}">
+                  {{ row.sla_pct }}%
+                </span>
+              </td>
+              <td class="py-2.5 pl-3 text-right font-mono tabular-nums text-ink-secondary">{{ row.avg_hours }}h</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Urgency Breakdown & Two-Key Trust Score -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <section class="lg:col-span-7 bg-surface border border-hairline rounded-xl p-5 space-y-4">
+      <div>
+        <h2 class="text-base font-semibold text-ink">{{ t.analytics_urgency_title }}</h2>
+        <p class="text-xs text-ink-secondary mt-0.5">{{ t.analytics_urgency_sub }}</p>
+      </div>
+      <div class="h-60">
+        <canvas id="urgencyBreakdownChart"></canvas>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+        {% for row in urgency_breakdown %}
+        <div class="rounded-lg border border-hairline bg-canvas/60 p-3">
+          <span class="inline-flex items-center gap-1.5 text-xs font-medium text-ink">
+            <span class="w-2 h-2 rounded-full {% if row.tier == 'P1' %}bg-crimson{% elif row.tier == 'P2' %}bg-amberwarn{% elif row.tier == 'P3' %}bg-civic{% else %}bg-ink-muted{% endif %}"></span>
+            {{ row.label }}
+          </span>
+          <p class="font-mono text-lg font-semibold text-ink tabular-nums mt-1">{{ row.count }}</p>
+          <p class="text-[11px] font-mono text-ink-muted tabular-nums">{{ row.avg_hours }}h avg</p>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="lg:col-span-5 bg-surface border border-hairline rounded-xl p-5 space-y-4">
+      <div>
+        <h2 class="text-base font-semibold text-ink">{{ t.analytics_trust_title }}</h2>
+        <p class="text-xs text-ink-secondary mt-0.5">{{ t.analytics_trust_sub }}</p>
+      </div>
+      <div class="h-52 flex items-center justify-center">
+        <canvas id="trustScoreChart"></canvas>
+      </div>
+      <div class="space-y-2 text-xs">
+        <div class="flex items-center justify-between py-1.5 border-b border-hairline">
+          <span class="text-ink-secondary">{{ t.analytics_trust_confirmed }}</span>
+          <span class="font-mono font-semibold text-civic tabular-nums">{{ accepted_reports }}</span>
+        </div>
+        <div class="flex items-center justify-between py-1.5 border-b border-hairline">
+          <span class="text-ink-secondary">{{ t.analytics_trust_disputed }}</span>
+          <span class="font-mono font-semibold text-crimson tabular-nums">{{ rejected_reports }}</span>
+        </div>
+        <div class="flex items-center justify-between py-1.5">
+          <span class="text-ink-secondary">{{ t.analytics_trust_pending }}</span>
+          <span class="font-mono font-semibold text-amberwarn tabular-nums">{{ pending_reports }}</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    const data = {{ chart_payload_json|safe }};
+    if (typeof Chart === "undefined") return;
+
+    Chart.defaults.font.family = "Plus Jakarta Sans, Noto Sans Bengali, system-ui, sans-serif";
+    Chart.defaults.color = "#535A55";
+
+    new Chart(document.getElementById("deptLeaderboardChart"), {
+      type: "bar",
+      data: {
+        labels: data.dept_labels,
+        datasets: [
+          {
+            label: "{{ t.analytics_col_sla }} (%)",
+            data: data.dept_sla,
+            backgroundColor: "#0F5C43",
+            borderRadius: 4,
+            barThickness: 16
+          }
+        ]
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { min: 0, max: 100, grid: { color: "#E6E3DC" } },
+          y: { grid: { display: false } }
+        }
+      }
+    });
+
+    new Chart(document.getElementById("urgencyBreakdownChart"), {
+      type: "bar",
+      data: {
+        labels: data.urgency_labels,
+        datasets: [
+          {
+            label: "{{ t.analytics_col_total }}",
+            data: data.urgency_counts,
+            backgroundColor: ["#B91C1C", "#B45309", "#0F5C43", "#78807A"],
+            borderRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: "#E6E3DC" }, ticks: { precision: 0 } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+
+    new Chart(document.getElementById("trustScoreChart"), {
+      type: "doughnut",
+      data: {
+        labels: [
+          "{{ t.analytics_trust_confirmed }}",
+          "{{ t.analytics_trust_disputed }}",
+          "{{ t.analytics_trust_pending }}"
+        ],
+        datasets: [
+          {
+            data: data.trust_counts,
+            backgroundColor: ["#0F5C43", "#B91C1C", "#B45309"],
+            borderWidth: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "66%",
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 10, padding: 12 } } }
+      }
+    });
+  })();
+</script>
+{% endblock %}

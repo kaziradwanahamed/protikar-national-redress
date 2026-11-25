@@ -1,0 +1,26 @@
+[
+  {
+    "id": "GRS-2025-0001",
+    "text_bn": "গুলশান রোড ৪৫ এ ওয়াসার পানির পাইপ ফেটে গেছে।",
+    "text_en": "Dhaka WASA water pipe burst near Gulshan Road 45.",
+    "lat": 23.7925,
+    "lon": 90.4143,
+    "expected_agency_code": "DWASA"
+  },
+  {
+    "id": "GRS-2025-0002",
+    "text_bn": "বনানী রোড ১১ এ ডেসকোর বিদ্যুতের খুঁটি ভেঙে তার ঝুলে আছে।",
+    "text_en": "DESCO electric pole snapped with sparking wire at Banani.",
+    "lat": 23.7937,
+    "lon": 90.4043,
+    "expected_agency_code": "DESCO"
+  },
+  {
+    "id": "GRS-2025-0003",
+    "text_bn": "সাভার আশুলিয়া উপজেলা সড়কে বড় গর্ত।",
+    "text_en": "Deep pothole on Savar Ashulia LGED upazila road.",
+    "lat": 23.8950,
+    "lon": 90.3200,
+    "expected_agency_code": "LGED"
+  }
+]

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="{{ portal_lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0F5C43">
+  <link rel="manifest" href="/manifest.json">
+  <title>{% block title %}{{ t.brand_title }}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Bengali:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            canvas: "#F7F6F3",
+            surface: "#FFFFFF",
+            hairline: "#E6E3DC",
+            ink: { DEFAULT: "#1B1E1C", secondary: "#535A55", muted: "#78807A" },
+            civic: { DEFAULT: "#0F5C43", hover: "#0B4834", tint: "#EBF4F0" },
+            amberwarn: { DEFAULT: "#B45309", tint: "#FEF3C7" },
+            crimson: { DEFAULT: "#B91C1C", tint: "#FEE2E2" }
+          },
+          fontFamily: {
+            sans: ["Plus Jakarta Sans", "Noto Sans Bengali", "system-ui", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { font-feature-settings: "cv02", "cv03", "cv04", "cv11"; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    [x-cloak] { display: none !important; }
+    html.high-contrast body { background: #000000 !important; color: #FFFFFF !important; }
+    html.high-contrast .bg-surface, html.high-contrast .bg-canvas { background: #111111 !important; color: #FFFFFF !important; border-color: #FFD600 !important; }
+    html.high-contrast .text-ink, html.high-contrast .text-ink-secondary, html.high-contrast .text-ink-muted { color: #FFFFFF !important; }
+    html.high-contrast a, html.high-contrast button { border-color: #FFD600 !important; }
+    @media print { .no-print { display: none !important; } body { background: #fff !important; } }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-canvas text-ink font-sans antialiased min-h-screen flex flex-col">
+  <!-- NFR10: Elderly & Disability Accessibility Utility Strip -->
+  <div
+    x-data="{
+      scale: Number(localStorage.getItem('protikar_font_scale') || 100),
+      hc: localStorage.getItem('protikar_high_contrast') === '1',
+      speaking: false,
+      init() {
+        document.documentElement.style.fontSize = this.scale + '%';
+        document.documentElement.classList.toggle('high-contrast', this.hc);
+      },
+      bump(delta) {
+        this.scale = Math.min(130, Math.max(85, this.scale + delta));
+        localStorage.setItem('protikar_font_scale', this.scale);
+        document.documentElement.style.fontSize = this.scale + '%';
+      },
+      toggleContrast() {
+        this.hc = !this.hc;
+        localStorage.setItem('protikar_high_contrast', this.hc ? '1' : '0');
+        document.documentElement.classList.toggle('high-contrast', this.hc);
+      },
+      readAloud() {
+        if (!('speechSynthesis' in window)) return;
+        if (this.speaking) {
+          window.speechSynthesis.cancel();
+          this.speaking = false;
+          return;
+        }
+        const mainEl = document.querySelector('main');
+        const text = mainEl ? mainEl.innerText.slice(0, 1200) : document.title;
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = '{{ portal_lang }}' === 'bn' ? 'bn-BD' : 'en-US';
+        utter.onend = () => { this.speaking = false; };
+        this.speaking = true;
+        window.speechSynthesis.speak(utter);
+      }
+    }"
+    class="no-print bg-ink text-white text-[11px]"
+  >
+    <div class="max-w-[1440px] mx-auto px-6 py-1 flex flex-wrap items-center justify-between gap-2">
+      <span class="opacity-85">{{ t.brand_gov }}</span>
+      <div class="flex items-center gap-2">
+        <button type="button" @click="bump(-10)" class="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 font-mono" title="Decrease font size">A-</button>
+        <button type="button" @click="bump(10)" class="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 font-mono" title="Increase font size">A+</button>
+        <button type="button" @click="toggleContrast()" class="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20" :class="hc ? 'ring-1 ring-amber-300' : ''">
+          <span x-text="hc ? 'Standard Contrast' : 'High Contrast'"></span>
+        </button>
+        <button type="button" @click="readAloud()" class="px-2 py-0.5 rounded bg-civic hover:bg-civic-hover">
+          <span x-text="speaking ? 'Stop Audio' : 'Listen / Read Aloud'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <header class="no-print bg-surface border-b border-hairline sticky top-0 z-30">
+    <div class="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="w-8 h-8 rounded-lg bg-civic text-white flex items-center justify-center shrink-0" aria-hidden="true">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l8 4v6c0 5-3.5 7.5-8 8-4.5-.5-8-3-8-8V7l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+        </span>
+        <div class="leading-tight truncate">
+          <a href="{% url 'portal:home' %}" class="text-sm font-semibold text-ink block truncate">{{ t.brand_title }}</a>
+        </div>
+      </div>
+
+      <nav class="hidden lg:flex items-center gap-1 text-sm">
+        <a href="{% url 'portal:home' %}" class="px-2.5 py-2 rounded-lg transition-colors {% if active_nav == 'citizen' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary hover:bg-canvas{% endif %}">{{ t.nav_citizen }}</a>
+        <a href="{% url 'portal:udc-desk' %}" class="px-2.5 py-2 rounded-lg transition-colors {% if active_nav == 'udc' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary hover:bg-canvas{% endif %}">{{ t.nav_udc }}</a>
+        <a href="{% url 'portal:officer-workspace' %}" class="px-2.5 py-2 rounded-lg transition-colors {% if active_nav == 'officer' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary hover:bg-canvas{% endif %}">{{ t.nav_officer }}</a>
+        <a href="{% url 'portal:field-worker' %}" class="px-2.5 py-2 rounded-lg transition-colors {% if active_nav == 'field' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary hover:bg-canvas{% endif %}">{{ t.nav_field }}</a>
+        <a href="{% url 'portal:command-center' %}" class="px-2.5 py-2 rounded-lg transition-colors {% if active_nav == 'command' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary hover:bg-canvas{% endif %}">{{ t.nav_command }}</a>
+        <a href="{% url 'portal:analytics' %}" class="px-2.5 py-2 rounded-lg transition-colors {% if active_nav == 'analytics' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary hover:bg-canvas{% endif %}">{{ t.nav_analytics }}</a>
+      </nav>
+
+      <div class="flex items-center gap-2.5 shrink-0">
+        <!-- FR09: Citizen Notification Bell + Unread Badge + Dropdown Drawer -->
+        <div x-data="{ notifOpen: false, unread: {{ unread_notifications_count|default:0 }} }" class="relative">
+          <button type="button" @click="notifOpen = !notifOpen" id="notif-bell-btn" class="relative p-2 rounded-lg border border-hairline hover:bg-canvas text-ink-secondary transition-colors" aria-label="Notifications">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            <span x-show="unread > 0" x-text="unread" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-crimson text-white font-mono text-[10px] flex items-center justify-center tabular-nums"></span>
+          </button>
+
+          <div x-show="notifOpen" x-cloak @click.away="notifOpen = false" class="absolute right-0 mt-2 w-80 sm:w-96 bg-surface border border-hairline rounded-xl shadow-lg z-50 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-hairline flex items-center justify-between bg-canvas">
+              <span class="text-xs font-semibold text-ink">Multi-Channel Alerts (SMS · Push · In-App)</span>
+              <form hx-post="{% url 'portal:htmx-notif-mark-read' %}" hx-target="#notif-toast" hx-swap="innerHTML" @submit="unread = 0">
+                {% csrf_token %}
+                <button type="submit" class="text-[11px] text-civic hover:underline">Mark all read</button>
+              </form>
+            </div>
+            <div id="notif-toast"></div>
+            <div class="max-h-80 overflow-y-auto divide-y divide-hairline">
+              {% for n in recent_notifications %}
+              <div class="px-4 py-2.5 text-xs space-y-1 {% if not n.is_read %}bg-civic-tint/30{% endif %}">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-medium text-ink">{{ n.title }}</span>
+                  <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-canvas border border-hairline text-ink-secondary">{{ n.channel }}</span>
+                </div>
+                <p class="text-ink-secondary leading-snug">{{ n.message }}</p>
+                <p class="font-mono text-[10px] text-ink-muted">{{ n.sms_dispatch_status }} · {{ n.created_at|date:"M d H:i" }}</p>
+              </div>
+              {% empty %}
+              <p class="px-4 py-6 text-center text-xs text-ink-muted">No notifications yet. Submit or update a grievance to trigger SMS &amp; Push alerts.</p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <form method="post" action="{% url 'portal:set-language' %}">
+          {% csrf_token %}
+          <input type="hidden" name="lang" value="{{ t.lang_switch_target }}">
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" id="lang-toggle-btn" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-civic/40 bg-civic-tint/60 text-civic hover:bg-civic hover:text-white transition-colors">
+            {{ t.lang_switch_label }}
+          </button>
+        </form>
+        <a href="/api/docs/" class="hidden sm:inline-block text-xs text-ink-muted hover:text-ink transition-colors">API</a>
+      </div>
+    </div>
+
+    <!-- Compact Mobile Nav -->
+    <div class="lg:hidden border-t border-hairline px-4 py-1.5 flex items-center gap-1.5 overflow-x-auto text-xs">
+      <a href="{% url 'portal:home' %}" class="px-2.5 py-1 rounded-md whitespace-nowrap {% if active_nav == 'citizen' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary{% endif %}">{{ t.nav_citizen }}</a>
+      <a href="{% url 'portal:udc-desk' %}" class="px-2.5 py-1 rounded-md whitespace-nowrap {% if active_nav == 'udc' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary{% endif %}">{{ t.nav_udc }}</a>
+      <a href="{% url 'portal:officer-workspace' %}" class="px-2.5 py-1 rounded-md whitespace-nowrap {% if active_nav == 'officer' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary{% endif %}">{{ t.nav_officer }}</a>
+      <a href="{% url 'portal:field-worker' %}" class="px-2.5 py-1 rounded-md whitespace-nowrap {% if active_nav == 'field' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary{% endif %}">{{ t.nav_field }}</a>
+      <a href="{% url 'portal:command-center' %}" class="px-2.5 py-1 rounded-md whitespace-nowrap {% if active_nav == 'command' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary{% endif %}">{{ t.nav_command }}</a>
+      <a href="{% url 'portal:analytics' %}" class="px-2.5 py-1 rounded-md whitespace-nowrap {% if active_nav == 'analytics' %}bg-civic-tint text-civic font-medium{% else %}text-ink-secondary{% endif %}">{{ t.nav_analytics }}</a>
+    </div>
+  </header>
+
+  {% if demo_mode %}
+  <div
+    x-data="{
+      collapsed: localStorage.getItem('protikar_demo_bar_collapsed') === '1',
+      moreRoles: false,
+      toggleCollapse() {
+        this.collapsed = !this.collapsed;
+        localStorage.setItem('protikar_demo_bar_collapsed', this.collapsed ? '1' : '0');
+      }
+    }"
+    class="no-print bg-canvas border-b border-hairline"
+  >
+    <div x-show="collapsed" x-cloak class="max-w-[1440px] mx-auto px-6 py-1 flex items-center justify-between text-[11px] text-ink-muted">
+      <span>
+        {{ t.demo_bar_active }}:
+        <strong class="text-ink font-medium">
+          {% if active_demo_role %}{{ active_demo_role.display_label }} ({{ active_demo_role.subtitle }}){% elif request.user.is_authenticated %}{{ request.user.username }}{% else %}{{ t.demo_bar_guest }}{% endif %}
+        </strong>
+      </span>
+      <button type="button" @click="toggleCollapse()" class="text-civic hover:underline font-medium">{{ t.demo_bar_show }}</button>
+    </div>
+
+    <div x-show="!collapsed" class="max-w-[1440px] mx-auto px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="inline-flex items-center gap-1.5 text-ink-secondary mr-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-civic"></span>
+          <span class="font-medium text-ink">{{ t.demo_bar_title }}:</span>
+        </span>
+        {% for role in demo_roles %}
+          {% if role.username in "citizen_demo,whistleblower_demo,udc_operator,gro_dncc,field_worker_1,command_admin" %}
+          <form method="post" action="{% url 'accounts:demo-role-switch' %}" class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="username" value="{{ role.username }}">
+            <button type="submit" class="px-2.5 py-1 rounded-md border transition-colors {% if request.user.username == role.username %}border-civic bg-civic text-white font-medium{% else %}border-hairline bg-surface text-ink hover:border-civic{% endif %}">
+              {{ role.display_label }}
+            </button>
+          </form>
+          {% endif %}
+        {% endfor %}
+        <button type="button" @click="moreRoles = !moreRoles" class="px-2 py-1 rounded-md text-ink-muted hover:text-ink transition-colors">
+          <span x-text="moreRoles ? '{{ t.demo_bar_less }}' : '{{ t.demo_bar_more }}'"></span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface border border-hairline text-[11px] font-mono text-ink-secondary">
+          <span class="w-1.5 h-1.5 rounded-full {% if request.user.is_authenticated %}bg-civic{% else %}bg-ink-muted{% endif %}"></span>
+          {% if active_demo_role %}
+            {{ active_demo_role.display_label }} · {{ active_demo_role.subtitle }}
+          {% elif request.user.is_authenticated %}
+            {{ request.user.username }}
+          {% else %}
+            {{ t.demo_bar_guest }}
+          {% endif %}
+        </span>
+        <button type="button" @click="toggleCollapse()" class="text-[11px] text-ink-muted hover:text-ink">{{ t.demo_bar_hide }}</button>
+      </div>
+    </div>
+
+    <div x-show="!collapsed && moreRoles" x-cloak class="border-t border-hairline bg-surface">
+      <div class="max-w-[1440px] mx-auto px-6 py-2 flex flex-wrap items-center gap-2 text-xs">
+        {% for role in demo_roles %}
+          {% if role.username not in "citizen_demo,whistleblower_demo,udc_operator,gro_dncc,field_worker_1,command_admin" %}
+          <form method="post" action="{% url 'accounts:demo-role-switch' %}" class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="username" value="{{ role.username }}">
+            <button type="submit" class="px-2.5 py-1 rounded-md border transition-colors {% if request.user.username == role.username %}border-civic bg-civic text-white font-medium{% else %}border-hairline bg-canvas text-ink hover:border-civic{% endif %}">
+              {{ role.display_label }} · <span class="text-ink-muted">{{ role.subtitle }}</span>
+            </button>
+          </form>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <main class="flex-1 max-w-[1440px] w-full mx-auto px-6 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="no-print border-t border-hairline bg-surface mt-12">
+    <div class="max-w-[1440px] mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-ink-muted">
+      <span>{{ t.brand_gov }} · {{ t.brand_title }}</span>
+      <div class="flex items-center gap-4 font-mono tabular-nums">
+        <span>SHA-256 Ledger · PostGIS 16 · H3 Res-8</span>
+      </div>
+    </div>
+  </footer>
+  <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/sw.js").catch(() => {}); }</script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

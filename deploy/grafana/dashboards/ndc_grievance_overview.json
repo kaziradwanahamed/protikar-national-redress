@@ -1,0 +1,36 @@
+{
+  "title": "Bangladesh NDC — National Grievance & Disaster Surge Overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Active Disaster Crisis Zones",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "bd_grievance_active_crisis_zones" }]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "100% SLA Breaches Escalated",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "bd_grievance_sla_breaches_total" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "P1 Fast-Lane Rescue Dispatches",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "bd_grievance_fastlane_dispatches_total" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Immutable SHA-256 Audit Entries",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "bd_grievance_audit_ledger_entries_total" }]
+    }
+  ]
+}

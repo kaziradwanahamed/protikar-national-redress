@@ -1,0 +1,9 @@
+# Local override: host ports 5432/6379 are already used by local services,
+# so keep Postgres/Redis reachable only inside the Compose network.
+services:
+  db:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  minio-init:
+    profiles: ["minio-init"]

@@ -1,0 +1,35 @@
+databases:
+  - name: bd-grievance-db
+    databaseName: bd_grievance
+    user: grievance_app
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: protikar-national-redress
+    runtime: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
+    healthCheckPath: /healthz/
+    autoDeploy: true
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: DEMO_MODE
+        value: "True"
+      - key: USE_REMOTE_AI_SERVICE
+        value: "False"
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bd-grievance-db
+          property: connectionString
+      - key: WEB_CONCURRENCY
+        value: "2"

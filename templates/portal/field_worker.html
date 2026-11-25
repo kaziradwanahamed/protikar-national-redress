@@ -1,0 +1,342 @@
+{% extends "portal/base.html" %}
+{% load portal_i18n %}
+{% block title %}{{ t.nav_field }} · {{ t.brand_title }}{% endblock %}
+
+{% block content %}
+<div x-data="fieldWorkerPWA()" x-init="init()" class="max-w-xl mx-auto space-y-6">
+  <section class="flex items-start justify-between gap-4 border-b border-hairline pb-4">
+    <div>
+      <h1 class="text-xl font-semibold text-ink">{{ t.field_heading }}</h1>
+      <p class="text-sm text-ink-secondary mt-1">{{ t.field_subhead }}</p>
+    </div>
+    <span class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono"
+      :class="online ? 'bg-civic-tint text-civic' : 'bg-crimson-tint text-crimson'">
+      <span class="w-1.5 h-1.5 rounded-full" :class="online ? 'bg-civic' : 'bg-crimson'"></span>
+      <span x-text="online ? 'Online' : 'Offline (IndexedDB)'"></span>
+    </span>
+  </section>
+
+  <!-- Live 100m Geofence Verification Map -->
+  <section class="bg-surface border border-hairline rounded-xl p-5 space-y-4">
+    <div>
+      <label class="block text-xs font-medium text-ink-secondary mb-1.5">Assigned complaint</label>
+      <select x-model="selectedComplaint" @change="updateSelectedIncident($event)" class="w-full rounded-lg border border-hairline px-3 py-2 text-sm font-mono text-ink bg-surface">
+        {% for c in active_tickets %}
+        <option value="{{ c.complaint_id }}"
+          data-code="{{ c.tracking_code }}"
+          data-lat="{% if c.geo_point %}{{ c.geo_point.y }}{% else %}23.8069{% endif %}"
+          data-lon="{% if c.geo_point %}{{ c.geo_point.x }}{% else %}90.3687{% endif %}">
+          {{ c.tracking_code }} — {{ c.urgency_tier|urgency_label:portal_lang }}
+        </option>
+        {% empty %}
+        <option value="00000000-0000-0000-0000-000000000001" data-code="BD-2026-DHK-9000101" data-lat="23.8069" data-lon="90.3687">BD-2026-DHK-9000101 — P1</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Compact Google Map (or CartoDB fallback) with 100m Circle & Live Worker Position -->
+    <div class="space-y-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <span class="text-xs font-medium text-ink">100m Geofence Verification Map</span>
+        <span class="px-2.5 py-0.5 rounded-md font-mono text-xs tabular-nums"
+          :class="distanceMeters <= 100 ? 'bg-civic-tint text-civic' : 'bg-crimson-tint text-crimson'"
+          x-text="Math.round(distanceMeters) + 'm away — ' + (distanceMeters <= 100 ? 'Within 100m Gate' : 'Outside 100m Gate')">
+        </span>
+      </div>
+      <div id="field-geofence-map" class="h-52 w-full rounded-lg border border-hairline z-10"></div>
+      <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span class="font-mono text-ink-muted tabular-nums" x-text="'Worker GPS: ' + gpsLat + ', ' + gpsLon"></span>
+        <div class="flex gap-2">
+          <button type="button" @click="matchIncidentGPS()" class="px-3 py-1.5 rounded-lg bg-civic text-white text-xs font-medium hover:bg-civic-hover">
+            Match Incident GPS (15m away)
+          </button>
+          <button type="button" @click="startWatchGPS()" class="px-3 py-1.5 rounded-lg border border-hairline bg-surface text-xs font-medium text-ink hover:bg-canvas">
+            Live GPS watch
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-ink-secondary mb-1.5">Field officer role</label>
+        <select x-model="submittedBySeat" class="w-full rounded-lg border border-hairline px-3 py-2 text-xs bg-surface text-ink">
+          {% for s in field_seats %}
+          <option value="{{ s.doptor_seat_id }}">{{ s.designation_en }}</option>
+          {% empty %}
+          <option value="SEAT-DPDC-MIRPUR-FW">Field Technician — Mirpur Sub-Division</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-ink-secondary mb-1.5">Supervisor digital sign-off</label>
+        <select x-model="supervisorSeat" class="w-full rounded-lg border border-hairline px-3 py-2 text-xs bg-surface text-ink">
+          {% for s in supervisor_seats %}
+          <option value="{{ s.doptor_seat_id }}">{{ s.designation_en }}</option>
+          {% empty %}
+          <option value="SEAT-DPDC-MIRPUR-SUP">Executive Engineer — DPDC Mirpur</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="p-3.5 rounded-lg bg-canvas border border-hairline space-y-2">
+      <div class="flex items-center justify-between">
+        <label class="block text-xs font-medium text-ink-secondary">Geo-tagged "After" resolution photo</label>
+        <button type="button" @click="attachSamplePhoto()" class="px-2.5 py-1 rounded-md border border-hairline bg-surface text-xs font-medium text-civic hover:border-civic">
+          Attach sample after-photo
+        </button>
+      </div>
+      <input type="file" accept="image/*" capture="environment" @change="onAfterPhoto($event)" class="block w-full text-xs text-ink-secondary file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border file:border-hairline file:text-xs file:bg-surface file:text-ink">
+      <p x-show="photoLabel" x-text="photoLabel" class="text-[11px] font-mono text-civic"></p>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-ink-secondary mb-1.5">Field work log</label>
+      <textarea x-model="workSummary" @input="refreshSMS()" rows="3" placeholder="Describe repair completed, materials used, and safety check..." class="w-full rounded-lg border border-hairline px-3 py-2 text-sm"></textarea>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" @click="saveOrSubmit()" class="flex-1 py-2.5 rounded-lg bg-civic text-white text-sm font-medium hover:bg-civic-hover">
+        <span x-text="online ? 'Submit for supervisor sign-off' : 'Queue offline in IndexedDB'"></span>
+      </button>
+      <button type="button" @click="showSmsFallback = !showSmsFallback; refreshSMS()" class="px-3.5 py-2.5 rounded-lg border border-hairline text-xs font-medium text-ink hover:bg-canvas">
+        2G SMS fallback
+      </button>
+    </div>
+    <p x-show="statusNote" x-text="statusNote" class="text-xs font-mono text-civic"></p>
+  </section>
+
+  <!-- Automatic <140-Byte 2G SMS Fallback -->
+  <section x-show="!online || showSmsFallback" x-cloak class="bg-surface border border-amberwarn rounded-xl p-5 space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm font-semibold text-ink">Degraded-mode 2G SMS fallback (&le;140 bytes)</h2>
+      <span class="font-mono text-xs text-amberwarn tabular-nums" x-text="smsByteLength + ' / 140 bytes'"></span>
+    </div>
+    <pre class="p-3 rounded-lg bg-canvas border border-hairline font-mono text-xs text-ink whitespace-pre-wrap break-all" x-text="smsPayload"></pre>
+    <div class="flex items-center gap-2">
+      <a :href="smsUri" class="px-3.5 py-2 rounded-lg bg-amberwarn text-white text-xs font-medium">Open SMS app (333)</a>
+      <button type="button" @click="navigator.clipboard && navigator.clipboard.writeText(smsPayload)" class="px-3.5 py-2 rounded-lg border border-hairline text-xs font-medium text-ink hover:bg-canvas">Copy SMS payload</button>
+    </div>
+  </section>
+
+  <!-- IndexedDB Offline Sync Queue -->
+  <section class="bg-surface border border-hairline rounded-xl p-5 space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm font-semibold text-ink">Offline IndexedDB sync queue (<span class="font-mono tabular-nums" x-text="queuedItems.length"></span>)</h2>
+      <button type="button" @click="triggerSync()" class="px-3 py-1.5 rounded-lg border border-hairline text-xs font-medium text-ink hover:bg-canvas">Sync now</button>
+    </div>
+    <div class="divide-y divide-hairline">
+      <template x-for="item in queuedItems" :key="item.local_id">
+        <div class="py-2.5 flex items-center justify-between text-xs">
+          <div>
+            <span class="font-mono font-medium text-ink" x-text="item.tracking_code"></span>
+            <p class="text-ink-secondary truncate max-w-xs" x-text="item.work_summary"></p>
+          </div>
+          <span class="font-mono text-ink-muted tabular-nums" x-text="item.after_lat + ', ' + item.after_lon"></span>
+        </div>
+      </template>
+      <p x-show="queuedItems.length === 0" class="text-xs text-ink-muted py-2">No pending offline resolutions queued.</p>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/portal/js/field_offline.js"></script>
+<script>
+  const FW_GMAPS_KEY = "{{ GOOGLE_MAPS_API_KEY|escapejs }}";
+  let fwAlpine = null;
+
+  function haversineMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371008.8;
+    const toRad = (d) => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function fieldWorkerPWA() {
+    return {
+      online: navigator.onLine,
+      selectedComplaint: "{{ active_tickets.0.complaint_id|default:'00000000-0000-0000-0000-000000000001' }}",
+      selectedCode: "{{ active_tickets.0.tracking_code|default:'BD-2026-DHK-9000101' }}",
+      incidentLat: Number("{% if active_tickets.0.geo_point %}{{ active_tickets.0.geo_point.y }}{% else %}23.8069{% endif %}"),
+      incidentLon: Number("{% if active_tickets.0.geo_point %}{{ active_tickets.0.geo_point.x }}{% else %}90.3687{% endif %}"),
+      gpsLat: "23.80700",
+      gpsLon: "90.36880",
+      distanceMeters: 15,
+      submittedBySeat: "{{ field_seats.0.doptor_seat_id|default:'SEAT-DPDC-MIRPUR-FW' }}",
+      supervisorSeat: "{{ supervisor_seats.0.doptor_seat_id|default:'SEAT-DPDC-MIRPUR-SUP' }}",
+      photoUrl: "https://minio.local/grievance-media-encrypted/resolutions/demo-after.jpg",
+      photoLabel: "Sample after-photo attached (ready)",
+      workSummary: "Completed site repair, verified safety clearance, and restored public service.",
+      showSmsFallback: false,
+      smsPayload: "",
+      smsByteLength: 0,
+      smsUri: "sms:333",
+      queuedItems: [],
+      statusNote: "",
+      gmap: null, gIncident: null, gWorker: null, gCircle: null,
+      lmap: null, lIncident: null, lWorker: null, lCircle: null,
+      async init() {
+        fwAlpine = this;
+        this.recalcDistance();
+        this.refreshSMS();
+        this.queuedItems = await window.ProtikarFieldOffline.listOfflineResolutions();
+        if (!FW_GMAPS_KEY) this.initFallbackLeaflet();
+        window.addEventListener("online", async () => { this.online = true; await this.triggerSync(); });
+        window.addEventListener("offline", () => { this.online = false; this.refreshSMS(); });
+      },
+      recalcDistance() {
+        this.distanceMeters = haversineMeters(
+          this.incidentLat, this.incidentLon, Number(this.gpsLat), Number(this.gpsLon)
+        );
+        this.syncMapOverlays();
+      },
+      syncMapOverlays() {
+        const inc = { lat: this.incidentLat, lng: this.incidentLon };
+        const wrk = { lat: Number(this.gpsLat), lng: Number(this.gpsLon) };
+        if (this.gmap && this.gIncident && this.gWorker && this.gCircle) {
+          this.gIncident.setPosition(inc);
+          this.gCircle.setCenter(inc);
+          this.gWorker.setPosition(wrk);
+          this.gmap.panTo(inc);
+        } else if (this.lmap && this.lIncident && this.lWorker && this.lCircle) {
+          this.lIncident.setLatLng([inc.lat, inc.lng]);
+          this.lCircle.setLatLng([inc.lat, inc.lng]);
+          this.lWorker.setLatLng([wrk.lat, wrk.lng]);
+          this.lmap.setView([inc.lat, inc.lng], 17);
+        }
+      },
+      initFallbackLeaflet() {
+        if (this.lmap) return;
+        this.lmap = L.map("field-geofence-map").setView([this.incidentLat, this.incidentLon], 17);
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+          subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO"
+        }).addTo(this.lmap);
+        this.lIncident = L.marker([this.incidentLat, this.incidentLon]).bindPopup("Incident Pin").addTo(this.lmap);
+        this.lCircle = L.circle([this.incidentLat, this.incidentLon], { color: "#0F5C43", fillColor: "#0F5C43", fillOpacity: 0.14, radius: 100 }).addTo(this.lmap);
+        this.lWorker = L.circleMarker([Number(this.gpsLat), Number(this.gpsLon)], { radius: 7, color: "#1D4ED8", fillColor: "#3B82F6", fillOpacity: 0.9 }).bindPopup("Field Worker Live GPS").addTo(this.lmap);
+      },
+      initGoogleMap() {
+        const inc = { lat: this.incidentLat, lng: this.incidentLon };
+        const wrk = { lat: Number(this.gpsLat), lng: Number(this.gpsLon) };
+        this.gmap = new google.maps.Map(document.getElementById("field-geofence-map"), {
+          center: inc, zoom: 17, mapTypeControl: false, streetViewControl: false
+        });
+        this.gIncident = new google.maps.Marker({ position: inc, map: this.gmap, title: "Incident Location" });
+        this.gCircle = new google.maps.Circle({
+          map: this.gmap, center: inc, radius: 100,
+          strokeColor: "#0F5C43", strokeOpacity: 0.85, strokeWeight: 2, fillColor: "#0F5C43", fillOpacity: 0.15
+        });
+        this.gWorker = new google.maps.Marker({
+          position: wrk, map: this.gmap, title: "Field Worker Live GPS",
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#2563EB", fillOpacity: 1, strokeColor: "#FFFFFF", strokeWeight: 2 }
+        });
+      },
+      updateSelectedIncident(evt) {
+        const opt = evt.target.selectedOptions[0];
+        if (opt) {
+          this.selectedCode = opt.dataset.code || this.selectedCode;
+          this.incidentLat = Number(opt.dataset.lat || 23.8069);
+          this.incidentLon = Number(opt.dataset.lon || 90.3687);
+        }
+        this.recalcDistance();
+        this.refreshSMS();
+      },
+      matchIncidentGPS() {
+        this.gpsLat = (this.incidentLat + 0.00010).toFixed(5);
+        this.gpsLon = (this.incidentLon + 0.00010).toFixed(5);
+        this.recalcDistance();
+        this.refreshSMS();
+      },
+      startWatchGPS() {
+        if (!navigator.geolocation) { this.matchIncidentGPS(); return; }
+        navigator.geolocation.watchPosition(
+          (p) => {
+            this.gpsLat = p.coords.latitude.toFixed(5);
+            this.gpsLon = p.coords.longitude.toFixed(5);
+            this.recalcDistance();
+            this.refreshSMS();
+          },
+          () => { this.matchIncidentGPS(); },
+          { enableHighAccuracy: true, maximumAge: 5000 }
+        );
+      },
+      attachSamplePhoto() {
+        this.photoUrl = "https://minio.local/grievance-media-encrypted/resolutions/sample-after-verified.jpg";
+        this.photoLabel = "Sample geo-tagged after-photo attached";
+      },
+      onAfterPhoto(evt) {
+        const f = evt.target.files && evt.target.files[0];
+        if (f) {
+          this.photoUrl = "https://minio.local/grievance-media-encrypted/resolutions/" + encodeURIComponent(f.name);
+          this.photoLabel = "Uploaded: " + f.name;
+        }
+      },
+      refreshSMS() {
+        const out = window.ProtikarFieldOffline.generateCompact2GSMS({
+          trackingCode: this.selectedCode, lat: this.gpsLat, lon: this.gpsLon, workSummary: this.workSummary
+        });
+        this.smsPayload = out.payload;
+        this.smsByteLength = out.byteLength;
+        this.smsUri = out.smsUri;
+      },
+      async saveOrSubmit() {
+        const rec = {
+          local_id: "res-" + Date.now(),
+          complaint_id: this.selectedComplaint,
+          tracking_code: this.selectedCode,
+          submitted_by_seat: this.submittedBySeat,
+          supervisor_signoff_seat: this.supervisorSeat,
+          work_summary: this.workSummary,
+          after_photo_urls: [this.photoUrl],
+          after_lat: this.gpsLat,
+          after_lon: this.gpsLon,
+          captured_at: new Date().toISOString()
+        };
+        await window.ProtikarFieldOffline.enqueueOfflineResolution(rec);
+        this.queuedItems = await window.ProtikarFieldOffline.listOfflineResolutions();
+        if (this.online) {
+          const fd = new FormData();
+          fd.append("complaint_id", this.selectedComplaint);
+          fd.append("submitted_by_seat", this.submittedBySeat);
+          fd.append("supervisor_signoff_seat", this.supervisorSeat);
+          fd.append("work_summary", this.workSummary);
+          fd.append("after_lat", this.gpsLat);
+          fd.append("after_lon", this.gpsLon);
+          fd.append("photo_url", this.photoUrl);
+          const fileInp = document.querySelector('input[type="file"]');
+          if (fileInp && fileInp.files && fileInp.files[0]) {
+            fd.append("after_photo_file", fileInp.files[0]);
+          }
+          const csrf = (document.cookie.match(/(^| )csrftoken=([^;]+)/) || [])[2] || "";
+          const resp = await fetch("/htmx/field/submit-resolution/", {
+            method: "POST",
+            headers: { "X-CSRFToken": decodeURIComponent(csrf) },
+            body: fd
+          });
+          const html = await resp.text();
+          this.statusNote = html.replace(/<[^>]+>/g, "").trim();
+          await window.ProtikarFieldOffline.removeOfflineResolution(rec.local_id);
+          this.queuedItems = await window.ProtikarFieldOffline.listOfflineResolutions();
+        } else {
+          this.statusNote = "Saved offline to IndexedDB; will auto-sync on 4G return.";
+          this.refreshSMS();
+        }
+      },
+      async triggerSync() {
+        const res = await window.ProtikarFieldOffline.syncPendingResolutions();
+        this.queuedItems = await window.ProtikarFieldOffline.listOfflineResolutions();
+        this.statusNote = `Synced ${res.synced} item(s); ${res.remaining} pending in IndexedDB.`;
+      }
+    };
+  }
+  window.initFieldGoogleMap = function () { if (fwAlpine) fwAlpine.initGoogleMap(); };
+  window.gm_authFailure = function () { if (fwAlpine) { fwAlpine.gmap = null; fwAlpine.initFallbackLeaflet(); } };
+</script>
+{% if GOOGLE_MAPS_API_KEY %}
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&callback=initFieldGoogleMap"></script>
+{% endif %}
+{% endblock %}
